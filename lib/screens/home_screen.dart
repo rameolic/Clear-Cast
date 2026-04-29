@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _compatibilityMode = false;
   bool _loading = true;
   String? _error;
+  Timer? _updateCheckTimer;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -35,11 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadCompatibilityMode();
     _loadUrls();
-    _checkForUpdates();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _updateCheckTimer = Timer(
+        const Duration(seconds: 3),
+        () => _checkForUpdates(),
+      );
+    }
   }
 
   @override
   void dispose() {
+    _updateCheckTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -66,10 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkForUpdates() async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
+    if (!mounted || defaultTargetPlatform != TargetPlatform.android) {
       return;
     }
-    await Future.delayed(const Duration(seconds: 3));
     final update = await UpdateService().checkForUpdate();
     if (update != null && mounted) {
       showDialog<void>(
