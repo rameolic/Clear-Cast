@@ -9,8 +9,13 @@ import '../services/ad_blocker_service.dart';
 
 class WebViewScreen extends StatefulWidget {
   final UrlItem item;
+  final bool compatibilityMode;
 
-  const WebViewScreen({super.key, required this.item});
+  const WebViewScreen({
+    super.key,
+    required this.item,
+    this.compatibilityMode = false,
+  });
 
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
@@ -19,23 +24,99 @@ class WebViewScreen extends StatefulWidget {
 class _WebViewScreenState extends State<WebViewScreen> {
   InAppWebViewController? _webViewController;
   final AdBlockerService _adBlocker = AdBlockerService();
+  late final FindInteractionController _findInteractionController;
   bool _isLoading = true;
   double _loadingProgress = 0;
   String _currentTitle = '';
   bool _canGoBack = false;
   final FocusNode _webViewFocusNode = FocusNode();
+  final TextEditingController _findController = TextEditingController();
+  final FocusNode _findFocusNode = FocusNode();
+  bool _showFindBar = false;
+  int _findActiveMatch = 0;
+  int _findTotalMatches = 0;
 
   @override
   void initState() {
     super.initState();
     _adBlocker.initialize();
     _currentTitle = widget.item.title;
+    _findInteractionController = FindInteractionController(
+      onFindResultReceived: (controller, activeMatchOrdinal, numberOfMatches, isDoneCounting) async {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _findActiveMatch = activeMatchOrdinal;
+          _findTotalMatches = numberOfMatches;
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
     _webViewFocusNode.dispose();
+    _findController.dispose();
+    _findFocusNode.dispose();
     super.dispose();
+  }
+
+  void _openFindBar() {
+    setState(() => _showFindBar = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _findFocusNode.requestFocus();
+      _findController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _findController.text.length,
+      );
+    });
+  }
+
+  Future<void> _closeFindBar() async {
+    await _findInteractionController.clearMatches();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showFindBar = false;
+      _findController.clear();
+      _findActiveMatch = 0;
+      _findTotalMatches = 0;
+    });
+    _webViewFocusNode.requestFocus();
+  }
+
+  Future<void> _searchInPage(String query) async {
+    final text = query.trim();
+    if (text.isEmpty) {
+      await _findInteractionController.clearMatches();
+      if (mounted) {
+        setState(() {
+          _findActiveMatch = 0;
+          _findTotalMatches = 0;
+        });
+      }
+      return;
+    }
+    await _findInteractionController.findAll(find: text);
+  }
+
+  Future<void> _findNext() async {
+    if (_findController.text.trim().isEmpty) {
+      return;
+    }
+    await _findInteractionController.findNext(forward: true);
+  }
+
+  Future<void> _findPrevious() async {
+    if (_findController.text.trim().isEmpty) {
+      return;
+    }
+    await _findInteractionController.findNext(forward: false);
   }
 
   /// Handle hardware back button and D-pad back
@@ -50,10 +131,37 @@ class _WebViewScreenState extends State<WebViewScreen> {
   /// Handle TV remote key events when WebView has focus
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isCtrlOrMeta =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+
+    if (event.logicalKey == LogicalKeyboardKey.keyF && isCtrlOrMeta) {
+      _openFindBar();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.slash) {
+      _openFindBar();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      if (_showFindBar && _findFocusNode.hasFocus) {
+        if (isShift) {
+          _findPrevious();
+        } else {
+          _findNext();
+        }
+        return KeyEventResult.handled;
+      }
+    }
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.goBack:
       case LogicalKeyboardKey.escape:
+        if (_showFindBar) {
+          _closeFindBar();
+          return KeyEventResult.handled;
+        }
         _onWillPop().then((shouldPop) {
           if (shouldPop && mounted) Navigator.of(context).pop();
         });
@@ -97,6 +205,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             return Column(
               children: [
                 _buildTopBar(r),
+                if (_showFindBar) _buildFindBar(r),
                 if (_isLoading)
                   LinearProgressIndicator(
                     value: _loadingProgress > 0 ? _loadingProgress / 100 : null,
@@ -112,10 +221,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 focusNode: _webViewFocusNode,
                 onKeyEvent: _handleKeyEvent,
                 child: InAppWebView(
+                  findInteractionController: _findInteractionController,
                   initialUrlRequest: URLRequest(
                     url: WebUri(widget.item.url),
                   ),
-                  initialSettings: _adBlocker.webViewSettings,
+                  initialSettings: _adBlocker.webViewSettings(
+                    compatibilityMode: widget.compatibilityMode,
+                  ),
                   onWebViewCreated: (controller) {
                     _webViewController = controller;
                     _webViewFocusNode.requestFocus();
@@ -129,10 +241,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   onLoadStop: (controller, url) async {
                     setState(() => _isLoading = false);
 
-                    // Inject ad-hiding JS
-                    await controller.evaluateJavascript(
-                      source: AdBlockerService.adHidingJs,
-                    );
+                    if (!widget.compatibilityMode) {
+                      // Inject ad-hiding JS
+                      await controller.evaluateJavascript(
+                        source: AdBlockerService.adHidingJs,
+                      );
+                    }
 
                     // Inject TV navigation JS
                     await controller.evaluateJavascript(
@@ -154,6 +268,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   },
                   // ─── AD BLOCKING: intercept every request ───
                   shouldOverrideUrlLoading: (controller, navigationAction) async {
+                    if (widget.compatibilityMode) {
+                      return NavigationActionPolicy.ALLOW;
+                    }
                     final url = navigationAction.request.url?.toString() ?? '';
                     if (_adBlocker.shouldBlock(url)) {
                       return NavigationActionPolicy.CANCEL;
@@ -161,6 +278,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     return NavigationActionPolicy.ALLOW;
                   },
                   shouldInterceptRequest: (controller, request) async {
+                    if (widget.compatibilityMode) {
+                      return null;
+                    }
                     final url = request.url.toString();
                     if (_adBlocker.shouldBlock(url)) {
                       // Return empty response instead of the ad content
@@ -175,7 +295,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     return null; // Allow the request
                   },
                   onReceivedError: (controller, request, error) {
-                    // Silently ignore blocked resource errors
+                    if (widget.compatibilityMode) {
+                      return;
+                    }
+                    // Silently ignore blocked resource errors.
                   },
                 ),
               ),
@@ -237,10 +360,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
           ),
           if (r.isCompactWidth)
             Tooltip(
-              message: 'Ad blocking active',
+              message: widget.compatibilityMode
+                  ? 'Compatibility mode enabled'
+                  : 'Ad blocking active',
               child: Icon(
-                Icons.shield_rounded,
-                color: ClearCastColors.lime,
+                widget.compatibilityMode
+                    ? Icons.tune_rounded
+                    : Icons.shield_rounded,
+                color: widget.compatibilityMode
+                    ? Colors.amberAccent
+                    : ClearCastColors.lime,
                 size: badgeIcon,
               ),
             )
@@ -258,15 +387,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.shield_rounded,
-                    color: ClearCastColors.lime,
+                    widget.compatibilityMode
+                        ? Icons.tune_rounded
+                        : Icons.shield_rounded,
+                    color: widget.compatibilityMode
+                        ? Colors.amberAccent
+                        : ClearCastColors.lime,
                     size: badgeIcon,
                   ),
                   SizedBox(width: (r.w * 0.004).clamp(4.0, 8.0)),
                   Text(
-                    'AD BLOCKED',
+                    widget.compatibilityMode
+                        ? 'COMPAT MODE'
+                        : 'AD BLOCKED',
                     style: TextStyle(
-                      color: ClearCastColors.lime,
+                      color: widget.compatibilityMode
+                          ? Colors.amberAccent
+                          : ClearCastColors.lime,
                       fontSize: badgeFont,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.6,
@@ -276,6 +413,102 @@ class _WebViewScreenState extends State<WebViewScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFindBar(ResponsiveLayout r) {
+    return Container(
+      color: ClearCastColors.surface,
+      padding: EdgeInsets.fromLTRB(
+        r.toolbarHorizontalPadding(),
+        (r.h * 0.008).clamp(6.0, 10.0),
+        r.toolbarHorizontalPadding(),
+        (r.h * 0.01).clamp(8.0, 12.0),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: ClearCastColors.scaffoldDeep,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _findFocusNode.hasFocus
+                ? ClearCastColors.lime
+                : Colors.white.withValues(alpha: 0.2),
+            width: _findFocusNode.hasFocus ? 2 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.find_in_page_rounded,
+              color: _findFocusNode.hasFocus
+                  ? ClearCastColors.lime
+                  : Colors.white.withValues(alpha: 0.6),
+              size: r.tvButtonIconSize(),
+            ),
+            SizedBox(width: (r.w * 0.006).clamp(6.0, 12.0)),
+            Expanded(
+              child: TextField(
+                controller: _findController,
+                focusNode: _findFocusNode,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: r.toolbarTitleSize(),
+                ),
+                cursorColor: ClearCastColors.lime,
+                textInputAction: TextInputAction.search,
+                onChanged: _searchInPage,
+                onSubmitted: (_) => _findNext(),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  hintText: 'Find in page... (Enter next, Shift+Enter previous, Esc close)',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: r.toolbarTitleSize(),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: (r.w * 0.006).clamp(6.0, 12.0)),
+            Text(
+              _findTotalMatches == 0
+                  ? '0'
+                  : '$_findActiveMatch/$_findTotalMatches',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: r.toolbarBadgeFontSize(),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(width: (r.w * 0.005).clamp(4.0, 10.0)),
+            IconButton(
+              onPressed: _findPrevious,
+              tooltip: 'Previous match',
+              icon: Icon(
+                Icons.keyboard_arrow_up_rounded,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+            IconButton(
+              onPressed: _findNext,
+              tooltip: 'Next match',
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+            IconButton(
+              onPressed: _closeFindBar,
+              tooltip: 'Close find',
+              icon: Icon(
+                Icons.close_rounded,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

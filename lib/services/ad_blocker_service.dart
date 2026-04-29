@@ -155,9 +155,11 @@ class AdBlockerService {
 })();
 ''';
 
-  /// WebView settings optimized for TV + ad blocking
-  InAppWebViewSettings get webViewSettings => InAppWebViewSettings(
+  /// WebView settings optimized for TV; compatibility mode relaxes overrides.
+  InAppWebViewSettings webViewSettings({required bool compatibilityMode}) =>
+      InAppWebViewSettings(
         javaScriptEnabled: true,
+        isFindInteractionEnabled: true,
         mediaPlaybackRequiresUserGesture: false,
         allowsInlineMediaPlayback: true,
         useHybridComposition: true,
@@ -165,12 +167,15 @@ class AdBlockerService {
         builtInZoomControls: false,
         displayZoomControls: false,
         // Block mixed content
-        mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+        mixedContentMode: compatibilityMode
+            ? MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE
+            : MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
         // Disable unnecessary features
         databaseEnabled: false,
         domStorageEnabled: true,
         // User agent pretending to be a browser for better compatibility
-        userAgent:
-            'Mozilla/5.0 (Linux; Android 9; AFT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        userAgent: compatibilityMode
+            ? null
+            : 'Mozilla/5.0 (Linux; Android 9; AFT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       );
 }

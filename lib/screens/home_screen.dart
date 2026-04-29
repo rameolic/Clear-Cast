@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../layout/responsive_layout.dart';
 import '../theme/clearcast_colors.dart';
@@ -17,14 +20,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _compatibilityModeKey = 'compatibility_mode';
   List<UrlItem> _items = [];
+  String _searchQuery = '';
+  bool _compatibilityMode = false;
   bool _loading = true;
   String? _error;
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _loadCompatibilityMode();
     _loadUrls();
     _checkForUpdates();
   }
@@ -32,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -55,6 +66,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkForUpdates() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
     await Future.delayed(const Duration(seconds: 3));
     final update = await UpdateService().checkForUpdate();
     if (update != null && mounted) {
@@ -66,29 +80,189 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadCompatibilityMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(_compatibilityModeKey) ?? false;
+    if (!mounted) {
+      return;
+    }
+    setState(() => _compatibilityMode = enabled);
+  }
+
+  Future<void> _toggleCompatibilityMode() async {
+    final next = !_compatibilityMode;
+    setState(() => _compatibilityMode = next);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_compatibilityModeKey, next);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          next
+              ? 'Compatibility Mode enabled for new pages.'
+              : 'Compatibility Mode disabled.',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _openWebView(UrlItem item) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => WebViewScreen(item: item),
+        builder: (_) => WebViewScreen(
+          item: item,
+          compatibilityMode: _compatibilityMode,
+        ),
       ),
     );
+  }
+
+  List<UrlItem> get _filteredItems {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return _items;
+    }
+    return _items.where((item) {
+      return item.title.toLowerCase().contains(query) ||
+          item.description.toLowerCase().contains(query) ||
+          item.category.toLowerCase().contains(query) ||
+          item.url.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  void _focusSearch() {
+    if (!_searchFocusNode.hasFocus) {
+      _searchFocusNode.requestFocus();
+    }
+    _searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchController.text.length,
+    );
+  }
+
+  void _clearOrUnfocusSearch() {
+    if (_searchController.text.isNotEmpty) {
+      _searchController.clear();
+      setState(() => _searchQuery = '');
+      return;
+    }
+    _searchFocusNode.unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ClearCastColors.scaffold,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final r = ResponsiveLayout(constraints.biggest);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(r),
-              Expanded(child: _buildBody(r, constraints)),
-            ],
-          );
+      body: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.slash): _FocusSearchIntent(),
+          SingleActivator(LogicalKeyboardKey.keyF, control: true): _FocusSearchIntent(),
+          SingleActivator(LogicalKeyboardKey.keyF, meta: true): _FocusSearchIntent(),
+          SingleActivator(LogicalKeyboardKey.escape): _ClearOrUnfocusSearchIntent(),
         },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+              onInvoke: (intent) {
+                _focusSearch();
+                return null;
+              },
+            ),
+            _ClearOrUnfocusSearchIntent: CallbackAction<_ClearOrUnfocusSearchIntent>(
+              onInvoke: (intent) {
+                _clearOrUnfocusSearch();
+                return null;
+              },
+            ),
+          },
+          child: Focus(
+            autofocus: true,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final r = ResponsiveLayout(constraints.biggest);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(r),
+                    _buildSearchBar(r),
+                    Expanded(child: _buildBody(r, constraints)),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(ResponsiveLayout r) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        r.gridHorizontalPadding(),
+        0,
+        r.gridHorizontalPadding(),
+        (r.h * 0.012).clamp(8.0, 14.0),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: ClearCastColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _searchFocusNode.hasFocus
+                ? ClearCastColors.lime
+                : Colors.white.withValues(alpha: 0.14),
+            width: _searchFocusNode.hasFocus ? 2 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search_rounded,
+              color: _searchFocusNode.hasFocus
+                  ? ClearCastColors.lime
+                  : Colors.white.withValues(alpha: 0.6),
+              size: (r.shortestSide * 0.028).clamp(18.0, 24.0),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onChanged: (value) => setState(() => _searchQuery = value),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: r.bodyBodySize(),
+                ),
+                cursorColor: ClearCastColors.lime,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText:
+                      'Search sites...  (/ or Ctrl/Cmd+F to focus, Esc to clear)',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.38),
+                    fontSize: r.bodyBodySize(),
+                  ),
+                ),
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              IconButton(
+                onPressed: _clearOrUnfocusSearch,
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+                tooltip: 'Clear search',
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -160,6 +334,56 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          Focus(
+            child: Builder(
+              builder: (context) {
+                final focused = Focus.of(context).hasFocus;
+                return GestureDetector(
+                  onTap: _toggleCompatibilityMode,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: r.refreshButtonPadding(),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: focused || _compatibilityMode
+                            ? Colors.amberAccent
+                            : Colors.white.withValues(alpha: 0.2),
+                        width: focused ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      color: _compatibilityMode
+                          ? Colors.amberAccent.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.tune_rounded,
+                          color: focused || _compatibilityMode
+                              ? Colors.amberAccent
+                              : Colors.white.withValues(alpha: 0.5),
+                          size: r.refreshIconSize(),
+                        ),
+                        SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
+                        Text(
+                          _compatibilityMode ? 'Compat On' : 'Compat Off',
+                          style: TextStyle(
+                            color: focused || _compatibilityMode
+                                ? Colors.amberAccent
+                                : Colors.white.withValues(alpha: 0.5),
+                            fontSize: r.refreshLabelSize(),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(width: (r.w * 0.008).clamp(8.0, 14.0)),
           Focus(
             child: Builder(
               builder: (context) {
@@ -324,6 +548,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final visibleItems = _filteredItems;
     if (_items.isEmpty) {
       return Padding(
         padding: r.centeredHorizontalPadding(),
@@ -354,6 +579,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
+    if (visibleItems.isEmpty) {
+      return Padding(
+        padding: r.centeredHorizontalPadding(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: r.centeredContentMaxWidth()),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.search_off_rounded,
+                  color: Colors.white.withValues(alpha: 0.22),
+                  size: r.bodyIconLarge(),
+                ),
+                SizedBox(height: r.bodyGapSmall()),
+                Text(
+                  'No matches for "${_searchQuery.trim()}"',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: r.bodyBodySize(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final spacing = r.gridSpacing();
     final hPad = r.gridHorizontalPadding();
@@ -368,16 +623,24 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSpacing: spacing,
           childAspectRatio: ResponsiveLayout.gridAspectRatio,
         ),
-        itemCount: _items.length,
+        itemCount: visibleItems.length,
         itemBuilder: (context, index) {
           return UrlCard(
-            key: ValueKey(_items[index].url),
-            item: _items[index],
+            key: ValueKey(visibleItems[index].url),
+            item: visibleItems[index],
             autoFocus: index == 0,
-            onTap: () => _openWebView(_items[index]),
+            onTap: () => _openWebView(visibleItems[index]),
           );
         },
       ),
     );
   }
+}
+
+class _FocusSearchIntent extends Intent {
+  const _FocusSearchIntent();
+}
+
+class _ClearOrUnfocusSearchIntent extends Intent {
+  const _ClearOrUnfocusSearchIntent();
 }
