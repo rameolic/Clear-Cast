@@ -11,29 +11,38 @@ class SheetsService {
   ///  2. Publish it to the web:
   ///       File → Share → Publish to web → Sheet1 → CSV → Publish
   ///
-  ///  3. Copy the Sheet ID from the URL:
-  ///       https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit
+  ///  3. Use your published sheet key from URL:
+  ///       https://docs.google.com/spreadsheets/d/e/PUBLISHED_SHEET_KEY/pubhtml
   ///
-  ///  4. Configure values with --dart-define:
-  ///       --dart-define=SHEETS_SHEET_ID=your_sheet_id
+  ///  4. Configure values with --dart-define (optional):
+  ///       --dart-define=SHEETS_PUBLISHED_SHEET_KEY=your_published_sheet_key
   ///       --dart-define=SHEETS_SHEET_NAME=Sheet1
   ///
   ///  Example sheet row:
   ///    YouTube | https://youtube.com | https://i.imgur.com/xyz.png | Video |
   /// ─────────────────────────────────────────────────────────────────────────
-  static const String _sheetId = String.fromEnvironment('SHEETS_SHEET_ID');
+  static const String _sheetId = String.fromEnvironment(
+    'SHEETS_PUBLISHED_SHEET_KEY',
+    defaultValue: '2PACX-1vS7XItmvTnzSvsG1Xbt4f_Uwfxwcxs6pGQ-rDKvCmmWk1athbKlPEidCfQzM0RiDo1CC3tg8P1NcveH',
+  );
   static const String _sheetName =
       String.fromEnvironment('SHEETS_SHEET_NAME', defaultValue: 'Sheet1');
+  static const String _sheetGid = '0';
 
   static String get _csvUrl =>
-      'https://docs.google.com/spreadsheets/d/$_sheetId/gviz/tq?tqx=out:csv&sheet=$_sheetName';
+      'https://docs.google.com/spreadsheets/d/e/$_sheetId/pub?gid=$_sheetGid&single=true&output=csv';
 
   /// Fetches and parses the URL list from Google Sheets
   static Future<List<UrlItem>> fetchUrls() async {
     try {
       if (_sheetId.isEmpty) {
         throw Exception(
-          'Missing SHEETS_SHEET_ID. Run app with --dart-define=SHEETS_SHEET_ID=your_sheet_id',
+          'Missing SHEETS_PUBLISHED_SHEET_KEY. Run app with --dart-define=SHEETS_PUBLISHED_SHEET_KEY=your_published_sheet_key',
+        );
+      }
+      if (_sheetName.isEmpty) {
+        throw Exception(
+          'Missing SHEETS_SHEET_NAME. Run app with --dart-define=SHEETS_SHEET_NAME=Sheet1',
         );
       }
 
