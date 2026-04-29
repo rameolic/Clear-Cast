@@ -1,0 +1,67 @@
+# Extended Ad/Tracker Blocklist
+# Format: one domain per line, lines starting with # are comments
+# Add your own domains below
+
+# === Additional Ad Networks ===
+ads.yahoo.com
+ads.yimg.com
+adsystem.amazon.com
+media.net
+33across.com
+contextweb.com
+rhythmone.com
+tremorhub.com
+undertone.com
+yieldmo.com
+bidswitch.net
+sharethrough.com
+sovrn.com
+triplelift.com
+criteo.com
+criteo.net
+dianomi.com
+nativo.com
+teads.tv
+teads.com
+
+# === Analytics / Tracking ===
+amplitude.com
+heap.io
+kissmetrics.com
+clearbit.com
+intercom.io
+intercom.com
+hubspot.com
+pardot.com
+marketo.com
+eloqua.com
+act-on.com
+omtrdc.net
+2o7.net
+everesttech.net
+demdex.net
+adobedtm.com
+
+# === Fingerprinting ===
+fingerprintjs.com
+deviceatlas.com
+maxmind.com
+forensiq.com
+iovation.com
+threatmetrix.com
+
+# === Push Notification Spammers ===
+onesignal.com
+pushwoosh.com
+pushcrew.com
+webpushr.com
+sendinblue.com
+pushassist.com
+
+# === Affiliate / Redirect Trackers ===
+adclick.g.doubleclick.net
+click.dtiserv2.com
+trk.email
+trk.klclick.com
+go2speed.org
+track.clickbooth.com

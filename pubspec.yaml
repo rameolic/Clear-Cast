@@ -1,0 +1,34 @@
+name: flutter_tv_app
+description: ClearCast — curated web on TV & desktop with WebView and Sheets URLs.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # WebView with full request interception
+  flutter_inappwebview: ^6.1.5
+
+  # HTTP for fetching Google Sheets CSV
+  http: ^1.2.1
+
+  # Cached images for thumbnails
+  cached_network_image: ^3.3.1
+
+  # URL launcher fallback
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/blocklist.txt
+    - assets/branding/clearcast_logo.png
