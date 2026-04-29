@@ -1,0 +1,131 @@
+name: Release APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter 3.19.0
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.0"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d '[:space:]')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Rename APK artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/clearcast-${VERSION}.apk"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: ClearCast ${{ steps.version.outputs.version }}
+          files: build/app/outputs/flutter-apk/clearcast-${{ steps.version.outputs.version }}.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Flutter (latest stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build AAB
+        run: flutter build appbundle --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  release:
+    needs: build-android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      - name: Download AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: aab
+          path: aab
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apk/app-release.apk
+            aab/app-release.aab
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

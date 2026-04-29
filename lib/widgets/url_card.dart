@@ -222,24 +222,46 @@ class _UrlCardState extends State<UrlCard> with SingleTickerProviderStateMixin {
     );
   }
 
+  Widget _thumbnailFallbackLabel(double iconSize) {
+    final raw = widget.item.title.trim();
+    final display = raw.isEmpty ? '—' : raw;
+    return Container(
+      color: ClearCastColors.surfaceMuted,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              display,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _isFocused
+                    ? ClearCastColors.lime
+                    : Colors.white.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w700,
+                fontSize: (iconSize * 1.35).clamp(28.0, 56.0),
+                letterSpacing: 0.35,
+                height: 1.05,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildThumbnail({required double iconSize}) {
     final thumb = widget.item.resolvedThumbnail;
     if (thumb.isEmpty) {
-      return Container(
-        color: ClearCastColors.surfaceMuted,
-        child: Center(
-          child: Icon(
-            Icons.web_rounded,
-            color: Colors.white.withValues(alpha: 0.2),
-            size: iconSize,
-          ),
-        ),
-      );
+      return _thumbnailFallbackLabel(iconSize);
     }
 
     return CachedNetworkImage(
       imageUrl: thumb,
-      fit: BoxFit.cover,
+      fit: BoxFit.fitWidth,
       width: double.infinity,
       height: double.infinity,
       placeholder: (_, __) => Container(
@@ -255,16 +277,7 @@ class _UrlCardState extends State<UrlCard> with SingleTickerProviderStateMixin {
           ),
         ),
       ),
-      errorWidget: (_, __, ___) => Container(
-        color: ClearCastColors.surfaceMuted,
-        child: Center(
-          child: Icon(
-            Icons.broken_image_rounded,
-            color: Colors.white.withValues(alpha: 0.2),
-            size: iconSize * 0.85,
-          ),
-        ),
-      ),
+      errorWidget: (_, __, ___) => _thumbnailFallbackLabel(iconSize),
     );
   }
 }

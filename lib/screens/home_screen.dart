@@ -4,7 +4,9 @@ import '../layout/responsive_layout.dart';
 import '../theme/clearcast_colors.dart';
 import '../models/url_item.dart';
 import '../services/sheets_service.dart';
+import '../services/update_service.dart';
 import '../widgets/url_card.dart';
+import '../widgets/update_dialog.dart';
 import 'webview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadUrls();
+    _checkForUpdates();
   }
 
   @override
@@ -48,6 +51,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    await Future.delayed(const Duration(seconds: 3));
+    final update = await UpdateService().checkForUpdate();
+    if (update != null && mounted) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => UpdateDialog(updateInfo: update),
+      );
     }
   }
 
