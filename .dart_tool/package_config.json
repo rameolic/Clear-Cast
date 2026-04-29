@@ -2,6 +2,12 @@
   "configVersion": 2,
   "packages": [
     {
+      "name": "archive",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/archive-4.0.9",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "args",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/args-2.7.0",
       "packageUri": "lib/",
@@ -40,6 +46,18 @@
     {
       "name": "characters",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/characters-1.4.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "checked_yaml",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/checked_yaml-2.0.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
+      "name": "cli_util",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/cli_util-0.4.2",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -152,6 +170,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "flutter_launcher_icons",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/flutter_launcher_icons-0.14.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "flutter_lints",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/flutter_lints-3.0.2",
       "packageUri": "lib/",
@@ -194,6 +218,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "image",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/image-4.8.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "jni",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/jni-1.0.0",
       "packageUri": "lib/",
@@ -204,6 +234,12 @@
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/jni_flutter-1.0.1",
       "packageUri": "lib/",
       "languageVersion": "3.3"
+    },
+    {
+      "name": "json_annotation",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/json_annotation-4.11.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.9"
     },
     {
       "name": "leak_tracker",
@@ -380,6 +416,12 @@
       "languageVersion": "3.2"
     },
     {
+      "name": "petitparser",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/petitparser-7.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
+    },
+    {
       "name": "platform",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/platform-3.1.6",
       "packageUri": "lib/",
@@ -388,6 +430,12 @@
     {
       "name": "plugin_platform_interface",
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/plugin_platform_interface-2.1.8",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "posix",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/posix-6.5.0",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -618,6 +666,12 @@
       "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/xdg_directories-1.1.0",
       "packageUri": "lib/",
       "languageVersion": "3.3"
+    },
+    {
+      "name": "xml",
+      "rootUri": "file:///Users/rameolic/.pub-cache/hosted/pub.dev/xml-6.6.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.8"
     },
     {
       "name": "yaml",

@@ -37,23 +37,220 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Build AAB
-        run: flutter build appbundle --release
+      - name: Sign APK (if Android signing secrets are set)
+        id: sign_android
+        if: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: build/app/outputs/flutter-apk
+          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Normalize APK output path
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ -n "${{ steps.sign_android.outputs.signedReleaseFile }}" ]; then
+            cp "${{ steps.sign_android.outputs.signedReleaseFile }}" dist/clearcast-${{ github.ref_name }}-android.apk
+          else
+            cp build/app/outputs/flutter-apk/app-release.apk dist/clearcast-${{ github.ref_name }}-android.apk
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: dist/clearcast-${{ github.ref_name }}-android.apk
 
-      - name: Upload AAB artifact
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Flutter (latest stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Import Apple Developer certificate
+        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > build_certificate.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import build_certificate.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+      - name: Codesign macOS app bundle
+        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        run: |
+          APP_PATH="build/macos/Build/Products/Release/flutter_tv_app.app"
+          codesign --force --deep --options runtime --sign "${{ secrets.MACOS_CERT_IDENTITY }}" "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build DMG installer
+        run: |
+          APP_PATH="build/macos/Build/Products/Release/flutter_tv_app.app"
+          DMG_NAME="ClearCast-${{ github.ref_name }}-macos.dmg"
+          create-dmg \
+            --volname "ClearCast Installer" \
+            --window-size 900 600 \
+            --icon-size 120 \
+            --app-drop-link 700 250 \
+            "$DMG_NAME" \
+            "$APP_PATH"
+
+      - name: Codesign DMG
+        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        run: |
+          DMG_NAME="ClearCast-${{ github.ref_name }}-macos.dmg"
+          codesign --force --sign "${{ secrets.MACOS_CERT_IDENTITY }}" "$DMG_NAME"
+          codesign --verify --verbose=2 "$DMG_NAME"
+
+      - name: Notarize DMG (optional)
+        if: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: |
+          DMG_NAME="ClearCast-${{ github.ref_name }}-macos.dmg"
+          xcrun notarytool submit "$DMG_NAME" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          xcrun stapler staple "$DMG_NAME"
+
+      - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: macos-dmg
+          path: ClearCast-${{ github.ref_name }}-macos.dmg
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Flutter (latest stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows app
+        run: flutter build windows --release
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create NSIS installer script
+        shell: pwsh
+        run: |
+          @'
+          !include "MUI2.nsh"
+          Name "ClearCast"
+          OutFile "ClearCast-${{ github.ref_name }}-windows-setup.exe"
+          InstallDir "$PROGRAMFILES64\ClearCast"
+          RequestExecutionLevel admin
+
+          !insertmacro MUI_PAGE_WELCOME
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_PAGE_FINISH
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+            SetOutPath "$INSTDIR"
+            File /r "build\windows\x64\runner\Release\*.*"
+            CreateShortcut "$DESKTOP\ClearCast.lnk" "$INSTDIR\flutter_tv_app.exe"
+            CreateShortcut "$SMPROGRAMS\ClearCast.lnk" "$INSTDIR\flutter_tv_app.exe"
+            WriteUninstaller "$INSTDIR\Uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            Delete "$DESKTOP\ClearCast.lnk"
+            Delete "$SMPROGRAMS\ClearCast.lnk"
+            RMDir /r "$INSTDIR"
+          SectionEnd
+          '@ | Set-Content installer.nsi
+
+      - name: Build Windows installer EXE
+        run: makensis installer.nsi
+
+      - name: Decode Windows signing certificate
+        if: ${{ secrets.WINDOWS_SIGN_CERT_PFX_BASE64 != '' && secrets.WINDOWS_SIGN_CERT_PASSWORD != '' }}
+        shell: pwsh
+        run: |
+          [System.IO.File]::WriteAllBytes(
+            "windows-cert.pfx",
+            [System.Convert]::FromBase64String("${{ secrets.WINDOWS_SIGN_CERT_PFX_BASE64 }}")
+          )
+
+      - name: Sign Windows installer EXE
+        if: ${{ secrets.WINDOWS_SIGN_CERT_PFX_BASE64 != '' && secrets.WINDOWS_SIGN_CERT_PASSWORD != '' }}
+        shell: pwsh
+        run: |
+          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $signtool sign /fd SHA256 /f windows-cert.pfx /p "${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}" /tr http://timestamp.digicert.com /td SHA256 "ClearCast-${{ github.ref_name }}-windows-setup.exe"
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: ClearCast-${{ github.ref_name }}-windows-setup.exe
 
   release:
-    needs: build-android
+    needs: [build-android, build-macos, build-windows]
     runs-on: ubuntu-latest
 
     steps:
@@ -63,18 +260,25 @@ jobs:
           name: apk
           path: apk
 
-      - name: Download AAB
+      - name: Download macOS DMG
         uses: actions/download-artifact@v4
         with:
-          name: aab
-          path: aab
+          name: macos-dmg
+          path: macos
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: windows
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            apk/app-release.apk
-            aab/app-release.aab
+            apk/clearcast-${{ github.ref_name }}-android.apk
+            macos/ClearCast-${{ github.ref_name }}-macos.dmg
+            windows/ClearCast-${{ github.ref_name }}-windows-setup.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

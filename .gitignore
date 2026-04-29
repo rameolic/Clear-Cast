@@ -2,3 +2,5 @@
 /.dart_tool
 /.dart_tool/flutter_build
 /.dart_tool
+clearcast-upload.jks
+android_keystore_base64.txt
