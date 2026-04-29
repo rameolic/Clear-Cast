@@ -14,21 +14,29 @@ class SheetsService {
   ///  3. Copy the Sheet ID from the URL:
   ///       https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit
   ///
-  ///  4. Replace SHEET_ID_HERE below with your actual Sheet ID
+  ///  4. Configure values with --dart-define:
+  ///       --dart-define=SHEETS_SHEET_ID=your_sheet_id
+  ///       --dart-define=SHEETS_SHEET_NAME=Sheet1
   ///
   ///  Example sheet row:
   ///    YouTube | https://youtube.com | https://i.imgur.com/xyz.png | Video |
   /// ─────────────────────────────────────────────────────────────────────────
-  static const String _sheetId = 'SHEET_ID_HERE'; // 👈 Replace this
-  static const String _sheetName = 'Sheet1'; // 👈 Change if different tab name
+  static const String _sheetId = String.fromEnvironment('SHEETS_SHEET_ID');
+  static const String _sheetName =
+      String.fromEnvironment('SHEETS_SHEET_NAME', defaultValue: 'Sheet1');
 
   static String get _csvUrl =>
-      // 'https://docs.google.com/spreadsheets/d/$_sheetId/gviz/tq?tqx=out:csv&sheet=$_sheetName';
-      'https://docs.google.com/spreadsheets/d/e/2PACX-1vS7XItmvTnzSvsG1Xbt4f_Uwfxwcxs6pGQ-rDKvCmmWk1athbKlPEidCfQzM0RiDo1CC3tg8P1NcveH/pub?gid=0&single=true&output=csv';
+      'https://docs.google.com/spreadsheets/d/$_sheetId/gviz/tq?tqx=out:csv&sheet=$_sheetName';
 
   /// Fetches and parses the URL list from Google Sheets
   static Future<List<UrlItem>> fetchUrls() async {
     try {
+      if (_sheetId.isEmpty) {
+        throw Exception(
+          'Missing SHEETS_SHEET_ID. Run app with --dart-define=SHEETS_SHEET_ID=your_sheet_id',
+        );
+      }
+
       final response = await http.get(
         Uri.parse(_csvUrl),
         headers: {'Accept': 'text/csv'},
