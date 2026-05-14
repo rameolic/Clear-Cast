@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../layout/responsive_layout.dart';
 import '../models/url_item.dart';
 import '../theme/clearcast_colors.dart';
+import 'tv_focusable.dart';
 
 class UrlCard extends StatefulWidget {
   final UrlItem item;
@@ -55,8 +56,9 @@ class _UrlCardState extends State<UrlCard> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
+    return TvFocusable(
       autofocus: widget.autoFocus,
+      onPressed: widget.onTap,
       onFocusChange: _onFocusChange,
       child: ScaleTransition(
         scale: _scaleAnim,

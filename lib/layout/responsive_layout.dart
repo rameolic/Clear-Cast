@@ -5,26 +5,29 @@ import 'package:flutter/widgets.dart';
 /// Window-aware spacing and typography used across [lib/] screens.
 ///
 /// Built from the tight [Size] from [LayoutBuilder] or [MediaQuery.sizeOf].
+/// Pass [isTv] from [DeviceProfileService] for 10-foot / D-pad layouts.
 class ResponsiveLayout {
-  const ResponsiveLayout(this.size);
+  const ResponsiveLayout(this.size, {this.isTv = false});
 
   final Size size;
+  final bool isTv;
 
   double get w => size.width;
   double get h => size.height;
   double get shortestSide => math.min(w, h);
 
-  /// Narrow phone / small floating window.
-  bool get isCompactWidth => w < 520;
+  /// Narrow phone / small floating window (ignored on TV).
+  bool get isCompactWidth => !isTv && w < 520;
 
   /// Short window (e.g. snapped desktop).
-  bool get isCompactHeight => h < 420;
+  bool get isCompactHeight => !isTv && h < 420;
 
   // --- Grid (home) ---
   double gridSpacing() => (w * 0.012).clamp(8.0, 22.0);
   double gridHorizontalPadding() => (w * 0.04).clamp(16.0, 56.0);
   double gridBottomPadding() => (h * 0.055).clamp(20.0, 56.0);
-  double gridMaxCrossAxisExtent() => (w * 0.26).clamp(220.0, 380.0);
+  double gridMaxCrossAxisExtent() =>
+      isTv ? (w * 0.22).clamp(260.0, 420.0) : (w * 0.26).clamp(220.0, 380.0);
 
   static const double gridAspectRatio = 16 / 11;
 
@@ -38,8 +41,10 @@ class ResponsiveLayout {
 
   double headerLogoBox() => (shortestSide * 0.055).clamp(32.0, 52.0);
   double headerLogoIcon() => headerLogoBox() * 0.58;
-  double headerTitleSize() => (w * 0.017).clamp(16.0, 26.0);
-  double headerSubtitleSize() => (w * 0.009).clamp(10.0, 14.0);
+  double headerTitleSize() =>
+      isTv ? (w * 0.02).clamp(20.0, 32.0) : (w * 0.017).clamp(16.0, 26.0);
+  double headerSubtitleSize() =>
+      isTv ? (w * 0.011).clamp(12.0, 18.0) : (w * 0.009).clamp(10.0, 14.0);
   double headerTitleLetterSpacing() => (w * 0.003).clamp(1.5, 4.0);
 
   EdgeInsets refreshButtonPadding() => EdgeInsets.symmetric(
@@ -71,7 +76,8 @@ class ResponsiveLayout {
   double centeredContentMaxWidth() => (w * 0.92).clamp(280.0, 560.0);
 
   // --- WebView toolbar ---
-  double toolbarHeight() => (shortestSide * 0.065).clamp(44.0, 68.0);
+  double toolbarHeight() =>
+      isTv ? (shortestSide * 0.078).clamp(52.0, 80.0) : (shortestSide * 0.065).clamp(44.0, 68.0);
   double toolbarHorizontalPadding() => (w * 0.018).clamp(10.0, 24.0);
   double toolbarTitleSize() => (w * 0.009).clamp(12.0, 16.0);
   double toolbarBadgeFontSize() => (w * 0.007).clamp(8.0, 11.0);
@@ -81,12 +87,14 @@ class ResponsiveLayout {
       );
 
   EdgeInsets tvButtonPadding() => EdgeInsets.symmetric(
-        horizontal: (w * 0.01).clamp(10.0, 18.0),
-        vertical: (h * 0.01).clamp(6.0, 12.0),
+        horizontal: isTv ? (w * 0.014).clamp(14.0, 24.0) : (w * 0.01).clamp(10.0, 18.0),
+        vertical: isTv ? (h * 0.014).clamp(10.0, 16.0) : (h * 0.01).clamp(6.0, 12.0),
       );
 
-  double tvButtonIconSize() => (shortestSide * 0.026).clamp(14.0, 20.0);
-  double tvButtonLabelSize() => (w * 0.0075).clamp(10.0, 14.0);
+  double tvButtonIconSize() =>
+      isTv ? (shortestSide * 0.032).clamp(18.0, 28.0) : (shortestSide * 0.026).clamp(14.0, 20.0);
+  double tvButtonLabelSize() =>
+      isTv ? (w * 0.009).clamp(13.0, 18.0) : (w * 0.0075).clamp(10.0, 14.0);
 
   // --- Grid tile ([size] = LayoutBuilder constraints for that tile region) ---
   double tileThumbDisplayHeight() => math.min(w * 9 / 16, h);

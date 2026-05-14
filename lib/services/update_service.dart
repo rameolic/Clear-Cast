@@ -36,8 +36,7 @@ class UpdateService {
   factory UpdateService() => _instance;
 
   Future<UpdateInfo?> checkForUpdate() async {
-    if (_githubOwner == 'YOUR_GITHUB_USERNAME' ||
-        _githubRepo == 'YOUR_REPO_NAME') {
+    if (_githubOwner == 'rameolic' || _githubRepo == 'Clear-Cast') {
       debugPrint('UpdateService: GitHub owner/repo not configured.');
       return null;
     }

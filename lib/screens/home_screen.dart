@@ -8,8 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../layout/responsive_layout.dart';
 import '../theme/clearcast_colors.dart';
 import '../models/url_item.dart';
+import '../services/device_profile_service.dart';
 import '../services/sheets_service.dart';
 import '../services/update_service.dart';
+import '../widgets/tv_focusable.dart';
 import '../widgets/url_card.dart';
 import '../widgets/update_dialog.dart';
 import 'webview_screen.dart';
@@ -22,10 +24,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _compatibilityModeKey = 'compatibility_mode';
+  /// Persisted as `true` when protection is **off** (legacy key name: compatibility mode).
+  static const String _protectionOffPrefsKey = 'compatibility_mode';
   List<UrlItem> _items = [];
   String _searchQuery = '';
-  bool _compatibilityMode = false;
+  bool _protectionOff = false;
   bool _loading = true;
   String? _error;
   Timer? _updateCheckTimer;
@@ -36,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCompatibilityMode();
+    _loadProtectionSetting();
     _loadUrls();
     if (defaultTargetPlatform == TargetPlatform.android) {
       _updateCheckTimer = Timer(
@@ -88,31 +91,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadCompatibilityMode() async {
+  Future<void> _loadProtectionSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool(_compatibilityModeKey) ?? false;
+    // Enforce Shield ON at every app launch.
+    const off = false;
+    await prefs.setBool(_protectionOffPrefsKey, off);
     if (!mounted) {
       return;
     }
-    setState(() => _compatibilityMode = enabled);
+    setState(() => _protectionOff = off);
   }
 
-  Future<void> _toggleCompatibilityMode() async {
-    final next = !_compatibilityMode;
-    setState(() => _compatibilityMode = next);
+  Future<void> _setProtectionOff(bool off) async {
+    setState(() => _protectionOff = off);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_compatibilityModeKey, next);
+    await prefs.setBool(_protectionOffPrefsKey, off);
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          next
-              ? 'Compatibility Mode enabled for new pages.'
-              : 'Compatibility Mode disabled.',
+          off
+              ? 'Protection off for new pages: no ad blocking or injected scripts. Re-open a site if one is already open.'
+              : 'Protection on: blocking and safety helpers enabled for new pages.',
         ),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -122,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => WebViewScreen(
           item: item,
-          compatibilityMode: _compatibilityMode,
+          compatibilityMode: _protectionOff,
         ),
       ),
     );
@@ -162,44 +166,57 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ClearCastColors.scaffold,
-      body: Shortcuts(
-        shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.slash): _FocusSearchIntent(),
-          SingleActivator(LogicalKeyboardKey.keyF, control: true): _FocusSearchIntent(),
-          SingleActivator(LogicalKeyboardKey.keyF, meta: true): _FocusSearchIntent(),
-          SingleActivator(LogicalKeyboardKey.escape): _ClearOrUnfocusSearchIntent(),
-        },
-        child: Actions(
-          actions: <Type, Action<Intent>>{
-            _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
-              onInvoke: (intent) {
-                _focusSearch();
-                return null;
+    final isTv = DeviceProfileService.instance.isAndroidTv;
+    return PopScope(
+      canPop: !isTv,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !isTv) {
+          return;
+        }
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: ClearCastColors.scaffold,
+        body: TvNavigationScope(
+          child: Shortcuts(
+            shortcuts: <ShortcutActivator, Intent>{
+              const SingleActivator(LogicalKeyboardKey.slash): const _FocusSearchIntent(),
+              const SingleActivator(LogicalKeyboardKey.keyF, control: true): const _FocusSearchIntent(),
+              const SingleActivator(LogicalKeyboardKey.keyF, meta: true): const _FocusSearchIntent(),
+              const SingleActivator(LogicalKeyboardKey.escape): const _ClearOrUnfocusSearchIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+                  onInvoke: (intent) {
+                    _focusSearch();
+                    return null;
+                  },
+                ),
+                _ClearOrUnfocusSearchIntent: CallbackAction<_ClearOrUnfocusSearchIntent>(
+                  onInvoke: (intent) {
+                    _clearOrUnfocusSearch();
+                    return null;
+                  },
+                ),
               },
-            ),
-            _ClearOrUnfocusSearchIntent: CallbackAction<_ClearOrUnfocusSearchIntent>(
-              onInvoke: (intent) {
-                _clearOrUnfocusSearch();
-                return null;
-              },
-            ),
-          },
-          child: Focus(
-            autofocus: true,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final r = ResponsiveLayout(constraints.biggest);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(r),
-                    _buildSearchBar(r),
-                    Expanded(child: _buildBody(r, constraints)),
-                  ],
-                );
-              },
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final r = ResponsiveLayout(
+                    constraints.biggest,
+                    isTv: isTv,
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(r),
+                      _buildSearchBar(r, isTv),
+                      _buildProtectionRow(r),
+                      Expanded(child: _buildBody(r, constraints)),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -207,7 +224,80 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchBar(ResponsiveLayout r) {
+  Widget _buildProtectionRow(ResponsiveLayout r) {
+    final protectionOn = !_protectionOff;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        r.gridHorizontalPadding(),
+        0,
+        r.gridHorizontalPadding(),
+        (r.h * 0.012).clamp(8.0, 14.0),
+      ),
+      child: TvFocusable(
+        onPressed: () => _setProtectionOff(!_protectionOff),
+        child: Material(
+          color: ClearCastColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _setProtectionOff(!_protectionOff),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: (r.w * 0.022).clamp(12.0, 18.0),
+                vertical: (r.h * 0.014).clamp(10.0, 14.0),
+              ),
+              child: Row(
+                children: [
+                Icon(
+                  protectionOn ? Icons.shield_rounded : Icons.shield_outlined,
+                  color: protectionOn
+                      ? ClearCastColors.lime
+                      : Colors.amberAccent,
+                  size: (r.shortestSide * 0.038).clamp(22.0, 30.0),
+                ),
+                SizedBox(width: (r.w * 0.018).clamp(12.0, 18.0)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        protectionOn ? 'Protection on' : 'Protection off',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: r.bodyTitleSize(),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: (r.h * 0.004).clamp(2.0, 6.0)),
+                      Text(
+                        protectionOn
+                            ? 'Blocks ads/trackers and strips intrusive overlays. Turn off if video stalls or a site breaks.'
+                            : 'Plain browsing: no request filtering or injected scripts (best for stubborn players).',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: r.bodyBodySize() * 0.92,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: protectionOn,
+                  activeThumbColor: ClearCastColors.lime,
+                  activeTrackColor: ClearCastColors.lime.withValues(alpha: 0.35),
+                  onChanged: (on) => _setProtectionOff(!on),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildSearchBar(ResponsiveLayout r, bool isTv) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
         r.gridHorizontalPadding(),
@@ -251,8 +341,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText:
-                      'Search sites...  (/ or Ctrl/Cmd+F to focus, Esc to clear)',
+                  hintText: isTv
+                      ? 'Search sites... (Select to type)'
+                      : 'Search sites...  (/ or Ctrl/Cmd+F to focus, Esc to clear)',
                   hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.38),
                     fontSize: r.bodyBodySize(),
@@ -342,100 +433,99 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          Focus(
+          TvFocusable(
+            onPressed: () => _setProtectionOff(!_protectionOff),
             child: Builder(
               builder: (context) {
                 final focused = Focus.of(context).hasFocus;
-                return GestureDetector(
-                  onTap: _toggleCompatibilityMode,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: r.refreshButtonPadding(),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: focused || _compatibilityMode
-                            ? Colors.amberAccent
-                            : Colors.white.withValues(alpha: 0.2),
-                        width: focused ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      color: _compatibilityMode
-                          ? Colors.amberAccent.withValues(alpha: 0.12)
-                          : Colors.transparent,
+                final protectionOn = !_protectionOff;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: r.refreshButtonPadding(),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: focused || _protectionOff
+                          ? Colors.amberAccent
+                          : Colors.white.withValues(alpha: 0.2),
+                      width: focused ? 2 : 1,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.tune_rounded,
-                          color: focused || _compatibilityMode
+                    borderRadius: BorderRadius.circular(8),
+                    color: _protectionOff
+                        ? Colors.amberAccent.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        protectionOn
+                            ? Icons.shield_rounded
+                            : Icons.shield_outlined,
+                        color: focused || _protectionOff
+                            ? Colors.amberAccent
+                            : Colors.white.withValues(alpha: 0.5),
+                        size: r.refreshIconSize(),
+                      ),
+                      SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
+                      Text(
+                        protectionOn ? 'Shield on' : 'Shield off',
+                        style: TextStyle(
+                          color: focused || _protectionOff
                               ? Colors.amberAccent
                               : Colors.white.withValues(alpha: 0.5),
-                          size: r.refreshIconSize(),
+                          fontSize: r.refreshLabelSize(),
+                          fontWeight: FontWeight.w600,
                         ),
-                        SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
-                        Text(
-                          _compatibilityMode ? 'Compat On' : 'Compat Off',
-                          style: TextStyle(
-                            color: focused || _compatibilityMode
-                                ? Colors.amberAccent
-                                : Colors.white.withValues(alpha: 0.5),
-                            fontSize: r.refreshLabelSize(),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
             ),
           ),
           SizedBox(width: (r.w * 0.008).clamp(8.0, 14.0)),
-          Focus(
+          TvFocusable(
+            onPressed: _loadUrls,
             child: Builder(
               builder: (context) {
                 final focused = Focus.of(context).hasFocus;
-                return GestureDetector(
-                  onTap: _loadUrls,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: r.refreshButtonPadding(),
-                    decoration: BoxDecoration(
-                      border: Border.all(
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: r.refreshButtonPadding(),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: focused
+                          ? ClearCastColors.lime
+                          : Colors.white.withValues(alpha: 0.2),
+                      width: focused ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: focused
+                        ? ClearCastColors.lime.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.refresh_rounded,
                         color: focused
                             ? ClearCastColors.lime
-                            : Colors.white.withValues(alpha: 0.2),
-                        width: focused ? 2 : 1,
+                            : Colors.white.withValues(alpha: 0.5),
+                        size: r.refreshIconSize(),
                       ),
-                      borderRadius: BorderRadius.circular(8),
-                      color: focused
-                          ? ClearCastColors.lime.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.refresh_rounded,
+                      SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
+                      Text(
+                        'Refresh',
+                        style: TextStyle(
                           color: focused
                               ? ClearCastColors.lime
                               : Colors.white.withValues(alpha: 0.5),
-                          size: r.refreshIconSize(),
+                          fontSize: r.refreshLabelSize(),
+                          fontWeight: FontWeight.w600,
                         ),
-                        SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
-                        Text(
-                          'Refresh',
-                          style: TextStyle(
-                            color: focused
-                                ? ClearCastColors.lime
-                                : Colors.white.withValues(alpha: 0.5),
-                            fontSize: r.refreshLabelSize(),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -516,33 +606,31 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   SizedBox(height: r.bodyGapLarge()),
-                  Focus(
+                  TvFocusable(
                     autofocus: true,
+                    onPressed: _loadUrls,
                     child: Builder(builder: (context) {
                       final focused = Focus.of(context).hasFocus;
-                      return GestureDetector(
-                        onTap: _loadUrls,
-                        child: Container(
-                          padding: r.retryButtonPadding(),
-                          decoration: BoxDecoration(
-                            color: focused
-                                ? ClearCastColors.lime
-                                : ClearCastColors.lime.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: ClearCastColors.lime,
-                              width: focused ? 2 : 1,
-                            ),
+                      return Container(
+                        padding: r.retryButtonPadding(),
+                        decoration: BoxDecoration(
+                          color: focused
+                              ? ClearCastColors.lime
+                              : ClearCastColors.lime.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: ClearCastColors.lime,
+                            width: focused ? 2 : 1,
                           ),
-                          child: Text(
-                            'Try Again',
-                            style: TextStyle(
-                              color: focused
-                                  ? ClearCastColors.onLime
-                                  : ClearCastColors.lime,
-                              fontWeight: FontWeight.w700,
-                              fontSize: r.retryLabelSize(),
-                            ),
+                        ),
+                        child: Text(
+                          'Try Again',
+                          style: TextStyle(
+                            color: focused
+                                ? ClearCastColors.onLime
+                                : ClearCastColors.lime,
+                            fontWeight: FontWeight.w700,
+                            fontSize: r.retryLabelSize(),
                           ),
                         ),
                       );

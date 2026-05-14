@@ -1,6 +1,6 @@
 name: flutter_tv_app
 description: ClearCast — curated web on TV & desktop with WebView and Sheets URLs.
-version: 1.0.0+1
+version: 1.0.0
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
