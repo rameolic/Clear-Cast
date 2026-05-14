@@ -37,9 +37,12 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Sign APK (if Android signing secrets are set)
+      # GitHub does not allow `secrets` in `if:` — gate with a repo variable instead.
+      # Settings → Secrets and variables → Actions → Variables:
+      #   ANDROID_SIGNING_ENABLED = true
+      - name: Sign APK
         id: sign_android
-        if: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ vars.ANDROID_SIGNING_ENABLED == 'true' }}
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: build/app/outputs/flutter-apk
@@ -95,8 +98,9 @@ jobs:
       - name: Build macOS app
         run: flutter build macos --release
 
+      # Variables: MACOS_SIGNING_ENABLED = true
       - name: Import Apple Developer certificate
-        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        if: ${{ vars.MACOS_SIGNING_ENABLED == 'true' }}
         env:
           MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
@@ -110,7 +114,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
 
       - name: Codesign macOS app bundle
-        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        if: ${{ vars.MACOS_SIGNING_ENABLED == 'true' }}
         run: |
           APP_PATH="build/macos/Build/Products/Release/flutter_tv_app.app"
           codesign --force --deep --options runtime --sign "${{ secrets.MACOS_CERT_IDENTITY }}" "$APP_PATH"
@@ -132,14 +136,15 @@ jobs:
             "$APP_PATH"
 
       - name: Codesign DMG
-        if: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_CERT_IDENTITY != '' }}
+        if: ${{ vars.MACOS_SIGNING_ENABLED == 'true' }}
         run: |
           DMG_NAME="ClearCast-${{ github.ref_name }}-macos.dmg"
           codesign --force --sign "${{ secrets.MACOS_CERT_IDENTITY }}" "$DMG_NAME"
           codesign --verify --verbose=2 "$DMG_NAME"
 
+      # Variables: MACOS_NOTARIZE_ENABLED = true
       - name: Notarize DMG (optional)
-        if: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        if: ${{ vars.MACOS_NOTARIZE_ENABLED == 'true' }}
         run: |
           DMG_NAME="ClearCast-${{ github.ref_name }}-macos.dmg"
           xcrun notarytool submit "$DMG_NAME" \
@@ -226,8 +231,9 @@ jobs:
       - name: Build Windows installer EXE
         run: makensis installer.nsi
 
+      # Variables: WINDOWS_SIGNING_ENABLED = true
       - name: Decode Windows signing certificate
-        if: ${{ secrets.WINDOWS_SIGN_CERT_PFX_BASE64 != '' && secrets.WINDOWS_SIGN_CERT_PASSWORD != '' }}
+        if: ${{ vars.WINDOWS_SIGNING_ENABLED == 'true' }}
         shell: pwsh
         run: |
           [System.IO.File]::WriteAllBytes(
@@ -236,7 +242,7 @@ jobs:
           )
 
       - name: Sign Windows installer EXE
-        if: ${{ secrets.WINDOWS_SIGN_CERT_PFX_BASE64 != '' && secrets.WINDOWS_SIGN_CERT_PASSWORD != '' }}
+        if: ${{ vars.WINDOWS_SIGNING_ENABLED == 'true' }}
         shell: pwsh
         run: |
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
