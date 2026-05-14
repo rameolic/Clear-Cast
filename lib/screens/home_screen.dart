@@ -175,47 +175,55 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         SystemNavigator.pop();
       },
-      child: Scaffold(
-        backgroundColor: ClearCastColors.scaffold,
-        body: TvNavigationScope(
-          child: Shortcuts(
-            shortcuts: <ShortcutActivator, Intent>{
-              const SingleActivator(LogicalKeyboardKey.slash): const _FocusSearchIntent(),
-              const SingleActivator(LogicalKeyboardKey.keyF, control: true): const _FocusSearchIntent(),
-              const SingleActivator(LogicalKeyboardKey.keyF, meta: true): const _FocusSearchIntent(),
-              const SingleActivator(LogicalKeyboardKey.escape): const _ClearOrUnfocusSearchIntent(),
-            },
-            child: Actions(
-              actions: <Type, Action<Intent>>{
-                _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
-                  onInvoke: (intent) {
-                    _focusSearch();
-                    return null;
-                  },
-                ),
-                _ClearOrUnfocusSearchIntent: CallbackAction<_ClearOrUnfocusSearchIntent>(
-                  onInvoke: (intent) {
-                    _clearOrUnfocusSearch();
-                    return null;
-                  },
-                ),
+      child: SafeArea(
+        top: true,
+        child: Scaffold(
+          backgroundColor: ClearCastColors.scaffold,
+          body: TvNavigationScope(
+            child: Shortcuts(
+              shortcuts: <ShortcutActivator, Intent>{
+                const SingleActivator(LogicalKeyboardKey.slash):
+                    const _FocusSearchIntent(),
+                const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                    const _FocusSearchIntent(),
+                const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+                    const _FocusSearchIntent(),
+                const SingleActivator(LogicalKeyboardKey.escape):
+                    const _ClearOrUnfocusSearchIntent(),
               },
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final r = ResponsiveLayout(
-                    constraints.biggest,
-                    isTv: isTv,
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(r),
-                      _buildSearchBar(r, isTv),
-                      _buildProtectionRow(r),
-                      Expanded(child: _buildBody(r, constraints)),
-                    ],
-                  );
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+                    onInvoke: (intent) {
+                      _focusSearch();
+                      return null;
+                    },
+                  ),
+                  _ClearOrUnfocusSearchIntent:
+                      CallbackAction<_ClearOrUnfocusSearchIntent>(
+                    onInvoke: (intent) {
+                      _clearOrUnfocusSearch();
+                      return null;
+                    },
+                  ),
                 },
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final r = ResponsiveLayout(
+                      constraints.biggest,
+                      isTv: isTv,
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(r),
+                        _buildSearchBar(r, isTv),
+                        _buildProtectionRow(r),
+                        Expanded(child: _buildBody(r, constraints)),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -248,52 +256,53 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Row(
                 children: [
-                Icon(
-                  protectionOn ? Icons.shield_rounded : Icons.shield_outlined,
-                  color: protectionOn
-                      ? ClearCastColors.lime
-                      : Colors.amberAccent,
-                  size: (r.shortestSide * 0.038).clamp(22.0, 30.0),
-                ),
-                SizedBox(width: (r.w * 0.018).clamp(12.0, 18.0)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        protectionOn ? 'Protection on' : 'Protection off',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          fontSize: r.bodyTitleSize(),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      SizedBox(height: (r.h * 0.004).clamp(2.0, 6.0)),
-                      Text(
-                        protectionOn
-                            ? 'Blocks ads/trackers and strips intrusive overlays. Turn off if video stalls or a site breaks.'
-                            : 'Plain browsing: no request filtering or injected scripts (best for stubborn players).',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.45),
-                          fontSize: r.bodyBodySize() * 0.92,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    protectionOn ? Icons.shield_rounded : Icons.shield_outlined,
+                    color: protectionOn
+                        ? ClearCastColors.lime
+                        : Colors.amberAccent,
+                    size: (r.shortestSide * 0.038).clamp(22.0, 30.0),
                   ),
-                ),
-                Switch.adaptive(
-                  value: protectionOn,
-                  activeThumbColor: ClearCastColors.lime,
-                  activeTrackColor: ClearCastColors.lime.withValues(alpha: 0.35),
-                  onChanged: (on) => _setProtectionOff(!on),
-                ),
-              ],
+                  SizedBox(width: (r.w * 0.018).clamp(12.0, 18.0)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          protectionOn ? 'Protection on' : 'Protection off',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontSize: r.bodyTitleSize(),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: (r.h * 0.004).clamp(2.0, 6.0)),
+                        Text(
+                          protectionOn
+                              ? 'Blocks ads/trackers and strips intrusive overlays. Turn off if video stalls or a site breaks.'
+                              : 'Plain browsing: no request filtering or injected scripts (best for stubborn players).',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: r.bodyBodySize() * 0.92,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: protectionOn,
+                    activeThumbColor: ClearCastColors.lime,
+                    activeTrackColor:
+                        ClearCastColors.lime.withValues(alpha: 0.35),
+                    onChanged: (on) => _setProtectionOff(!on),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
