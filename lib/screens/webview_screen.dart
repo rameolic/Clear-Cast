@@ -1161,7 +1161,6 @@ class _TVButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final VoidCallback? onToolbarFocus;
-  final bool autofocus;
 
   const _TVButton({
     required this.layout,
@@ -1169,7 +1168,6 @@ class _TVButton extends StatefulWidget {
     required this.label,
     required this.onTap,
     this.onToolbarFocus,
-    this.autofocus = false,
   });
 
   @override
@@ -1183,7 +1181,6 @@ class _TVButtonState extends State<_TVButton> {
   Widget build(BuildContext context) {
     final r = widget.layout;
     return TvFocusable(
-      autofocus: widget.autofocus,
       onPressed: widget.onTap,
       onFocusChange: (v) {
         setState(() => _focused = v);

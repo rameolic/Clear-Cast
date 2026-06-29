@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -213,15 +212,15 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: ClearCastColors.scaffold,
           body: TvNavigationScope(
             child: Shortcuts(
-              shortcuts: <ShortcutActivator, Intent>{
-                const SingleActivator(LogicalKeyboardKey.slash):
-                    const _FocusSearchIntent(),
-                const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-                    const _FocusSearchIntent(),
-                const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
-                    const _FocusSearchIntent(),
-                const SingleActivator(LogicalKeyboardKey.escape):
-                    const _ClearOrUnfocusSearchIntent(),
+              shortcuts: const <ShortcutActivator, Intent>{
+                SingleActivator(LogicalKeyboardKey.slash):
+                    _FocusSearchIntent(),
+                SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                    _FocusSearchIntent(),
+                SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+                    _FocusSearchIntent(),
+                SingleActivator(LogicalKeyboardKey.escape):
+                    _ClearOrUnfocusSearchIntent(),
               },
               child: Actions(
                 actions: <Type, Action<Intent>>{
