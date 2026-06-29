@@ -266,6 +266,184 @@ class AdBlockerService {
 })();
 ''';
 
+  /// Visible virtual cursor logic for Android TV inside WebView.
+  /// The lime ring is drawn by Flutter ([TvWebViewCursorOverlay]); this script
+  /// handles D-pad keys that reach the WebView natively and performs clicks.
+  static const String tvVirtualCursorJs = '''
+(function() {
+  if (window.__tvCursor) return;
+
+  const STEP = 28;
+  const EDGE = 48;
+
+  let x = window.innerWidth / 2;
+  let y = window.innerHeight / 2;
+  let active = false;
+
+  function clickAt(px, py) {
+    let el = document.elementFromPoint(px, py);
+    if (!el) return;
+    let target = el;
+    for (let i = 0; i < 15 && target; i++) {
+      const tag = (target.tagName || '').toLowerCase();
+      const role = target.getAttribute && target.getAttribute('role');
+      const tabIndex = target.getAttribute && target.getAttribute('tabindex');
+      const clickable = tag === 'a' || tag === 'button' || tag === 'input' ||
+        tag === 'select' || tag === 'textarea' || tag === 'label' ||
+        role === 'button' || role === 'link' || role === 'menuitem' ||
+        target.onclick || (tabIndex !== null && tabIndex !== '-1');
+      if (clickable) {
+        el = target;
+        break;
+      }
+      target = target.parentElement;
+    }
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      clientX: px,
+      clientY: py,
+      view: window
+    };
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(type) {
+      el.dispatchEvent(new MouseEvent(type, opts));
+    });
+    try {
+      if (el.focus) el.focus({ preventScroll: false });
+    } catch (e) {
+      if (el.focus) el.focus();
+    }
+  }
+
+  function move(dx, dy) {
+    const maxX = Math.max(0, window.innerWidth - 1);
+    const maxY = Math.max(0, window.innerHeight - 1);
+    let nx = Math.max(0, Math.min(maxX, x + dx));
+    let ny = Math.max(0, Math.min(maxY, y + dy));
+
+    if (nx <= EDGE && dx < 0) window.scrollBy(-STEP, 0);
+    if (nx >= maxX - EDGE && dx > 0) window.scrollBy(STEP, 0);
+    if (ny <= EDGE && dy < 0) window.scrollBy(0, -STEP);
+    if (ny >= maxY - EDGE && dy > 0) window.scrollBy(0, STEP);
+
+    x = nx;
+    y = ny;
+  }
+
+  function onKeyDown(e) {
+    if (!active) return;
+    const k = e.keyCode || e.which;
+    switch (k) {
+      case 38:
+        move(0, -STEP);
+        e.preventDefault();
+        e.stopPropagation();
+        break;
+      case 40:
+        move(0, STEP);
+        e.preventDefault();
+        e.stopPropagation();
+        break;
+      case 37:
+        move(-STEP, 0);
+        e.preventDefault();
+        e.stopPropagation();
+        break;
+      case 39:
+        move(STEP, 0);
+        e.preventDefault();
+        e.stopPropagation();
+        break;
+      case 13:
+      case 23:
+      case 66:
+        clickAt(x, y);
+        e.preventDefault();
+        e.stopPropagation();
+        break;
+    }
+  }
+
+  document.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('resize', function() {
+    x = Math.min(x, window.innerWidth / 2);
+    y = Math.min(y, window.innerHeight / 2);
+  });
+
+  window.__tvCursor = {
+    activate: function() {
+      x = window.innerWidth / 2;
+      y = window.innerHeight / 2;
+      active = true;
+    },
+    deactivate: function() {
+      active = false;
+    },
+    move: function(dx, dy) {
+      if (active) move(dx, dy);
+    },
+    click: function() {
+      if (active) clickAt(x, y);
+    },
+    setPosition: function(px, py) {
+      x = px;
+      y = py;
+    },
+    isActive: function() {
+      return active;
+    }
+  };
+})();
+''';
+
+  static String jsClickAtPoint(double x, double y) => '''
+(function() {
+  var px = $x;
+  var py = $y;
+  var el = document.elementFromPoint(px, py);
+  if (!el) return;
+  var target = el;
+  for (var i = 0; i < 15 && target; i++) {
+    var tag = (target.tagName || '').toLowerCase();
+    var role = target.getAttribute && target.getAttribute('role');
+    var tabIndex = target.getAttribute && target.getAttribute('tabindex');
+    var clickable = tag === 'a' || tag === 'button' || tag === 'input' ||
+      tag === 'select' || tag === 'textarea' || tag === 'label' ||
+      role === 'button' || role === 'link' || role === 'menuitem' ||
+      target.onclick || (tabIndex !== null && tabIndex !== '-1');
+    if (clickable) {
+      el = target;
+      break;
+    }
+    target = target.parentElement;
+  }
+  var opts = { bubbles: true, cancelable: true, clientX: px, clientY: py, view: window };
+  ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(type) {
+    el.dispatchEvent(new MouseEvent(type, opts));
+  });
+  try {
+    if (el.focus) el.focus({ preventScroll: false });
+  } catch (e) {
+    if (el.focus) el.focus();
+  }
+})();
+''';
+
+  static String jsTvCursorSetPosition(double x, double y) =>
+      'window.__tvCursor && window.__tvCursor.setPosition($x, $y);';
+
+  static String jsTvCursorMove(int dx, int dy) =>
+      'window.__tvCursor && window.__tvCursor.move($dx, $dy);';
+
+  static const String jsTvCursorClick =
+      'window.__tvCursor && window.__tvCursor.click();';
+
+  static const String jsTvCursorActivate =
+      'window.__tvCursor && window.__tvCursor.activate();';
+
+  static const String jsTvCursorDeactivate =
+      'window.__tvCursor && window.__tvCursor.deactivate();';
+
   /// D-pad scroll inside the page (non-TV; TV uses Flutter key handler).
   static const String tvScrollJs = '''
 (function() {

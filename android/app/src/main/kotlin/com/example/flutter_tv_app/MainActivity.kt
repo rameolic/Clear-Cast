@@ -25,6 +25,10 @@ class MainActivity : FlutterActivity() {
         if (uiMode == Configuration.UI_MODE_TYPE_TELEVISION) {
             return true
         }
-        return packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        if (packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
+            return true
+        }
+        // STBs / remotes without a touchscreen (e.g. some Fire TV builds).
+        return !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
     }
 }

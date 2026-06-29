@@ -14,6 +14,7 @@ import '../services/logger_service.dart';
 import '../services/navigation_guard_service.dart';
 import '../widgets/plain_webview.dart';
 import '../widgets/tv_focusable.dart';
+import '../widgets/tv_web_cursor_overlay.dart';
 
 class WebViewScreen extends StatefulWidget {
   final UrlItem item;
@@ -49,6 +50,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Uri? _lastCommittedMainFrameUri;
   DateTime? _lastCommittedAt;
   Uri? _pinnedAllowedPageUri;
+  bool _tvCursorHintShown = false;
+  static const double _tvCursorStep = 28;
+  static const double _tvEdgeScroll = 48;
+  Offset _tvCursor = Offset.zero;
+  Size _tvWebViewSize = Size.zero;
+  bool _tvCursorReady = false;
+  bool _tvCursorVisible = false;
 
   bool _shouldCancelTopLevelNavigation(WebUri? targetUrl) {
     final url = targetUrl?.toString() ?? '';
@@ -106,6 +114,136 @@ class _WebViewScreenState extends State<WebViewScreen> {
       },
     );
     _prepareCookies();
+    _webViewFocusNode.addListener(_handleWebViewFocusChanged);
+  }
+
+  void _handleWebViewFocusChanged() {
+    if (!DeviceProfileService.instance.isAndroidTv) {
+      return;
+    }
+    final controller = _webViewController;
+    final hasPageFocus = _webViewFocusNode.hasFocus && !_showFindBar;
+    if (controller != null) {
+      if (hasPageFocus) {
+        controller.evaluateJavascript(source: AdBlockerService.jsTvCursorActivate);
+        _syncTvCursorToJs();
+      } else {
+        controller.evaluateJavascript(
+          source: AdBlockerService.jsTvCursorDeactivate,
+        );
+      }
+    }
+    if (mounted) {
+      setState(() => _tvCursorVisible = hasPageFocus);
+    }
+  }
+
+  void _resetTvCursor(Size size) {
+    if (!DeviceProfileService.instance.isAndroidTv || size.width <= 0) {
+      return;
+    }
+    _tvWebViewSize = size;
+    _tvCursor = Offset(size.width / 2, size.height / 2);
+    _tvCursorReady = true;
+    _syncTvCursorToJs();
+  }
+
+  void _syncTvCursorToJs() {
+    if (!_tvCursorReady) {
+      return;
+    }
+    _webViewController?.evaluateJavascript(
+      source: AdBlockerService.jsTvCursorSetPosition(
+        _tvCursor.dx,
+        _tvCursor.dy,
+      ),
+    );
+  }
+
+  void _moveTvCursor(double dx, double dy) {
+    if (!_tvCursorReady) {
+      return;
+    }
+    const step = _tvCursorStep;
+    const edge = _tvEdgeScroll;
+    var x = _tvCursor.dx + dx;
+    var y = _tvCursor.dy + dy;
+
+    if (x < edge && dx < 0) {
+      _webViewController?.evaluateJavascript(
+        source: 'window.scrollBy(${-step.toInt()}, 0)',
+      );
+      x = edge;
+    } else if (x > _tvWebViewSize.width - edge && dx > 0) {
+      _webViewController?.evaluateJavascript(
+        source: 'window.scrollBy(${step.toInt()}, 0)',
+      );
+      x = _tvWebViewSize.width - edge;
+    }
+    if (y < edge && dy < 0) {
+      _webViewController?.evaluateJavascript(
+        source: 'window.scrollBy(0, ${-step.toInt()})',
+      );
+      y = edge;
+    } else if (y > _tvWebViewSize.height - edge && dy > 0) {
+      _webViewController?.evaluateJavascript(
+        source: 'window.scrollBy(0, ${step.toInt()})',
+      );
+      y = _tvWebViewSize.height - edge;
+    }
+
+    setState(() {
+      _tvCursor = Offset(
+        x.clamp(0, _tvWebViewSize.width),
+        y.clamp(0, _tvWebViewSize.height),
+      );
+    });
+    _syncTvCursorToJs();
+  }
+
+  void _clickTvCursor() {
+    if (!_tvCursorReady) {
+      return;
+    }
+    _webViewController?.evaluateJavascript(
+      source: AdBlockerService.jsClickAtPoint(_tvCursor.dx, _tvCursor.dy),
+    );
+  }
+
+  void _deactivateTvCursor() {
+    _webViewController?.evaluateJavascript(
+      source: AdBlockerService.jsTvCursorDeactivate,
+    );
+    if (mounted) {
+      setState(() => _tvCursorVisible = false);
+    }
+  }
+
+  void _activateTvCursor() {
+    if (_tvWebViewSize.width > 0) {
+      _resetTvCursor(_tvWebViewSize);
+    }
+    _webViewController?.evaluateJavascript(
+      source: AdBlockerService.jsTvCursorActivate,
+    );
+    if (mounted) {
+      setState(() => _tvCursorVisible = true);
+    }
+  }
+
+  void _showTvCursorHintIfNeeded() {
+    if (_tvCursorHintShown || !DeviceProfileService.instance.isAndroidTv) {
+      return;
+    }
+    _tvCursorHintShown = true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'D-pad moves the cursor · OK / Enter clicks · ↑ toolbar · Back exits',
+        ),
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _prepareCookies() async {
@@ -143,6 +281,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   @override
   void dispose() {
+    _webViewFocusNode.removeListener(_handleWebViewFocusChanged);
     _webViewFocusNode.dispose();
     _findController.dispose();
     _findFocusNode.dispose();
@@ -150,7 +289,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   void _openFindBar() {
-    setState(() => _showFindBar = true);
+    setState(() {
+      _showFindBar = true;
+      if (DeviceProfileService.instance.isAndroidTv) {
+        _tvCursorVisible = false;
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -215,9 +359,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return true;
   }
 
+  bool _isTvCursorActivationKey(LogicalKeyboardKey key) {
+    return TvActivationKeys.isActivationKey(key);
+  }
+
   /// Handle TV remote key events when WebView has focus
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isTv = DeviceProfileService.instance.isAndroidTv;
     final useRemoteScroll =
         DeviceProfileService.instance.prefersDpadNavigation;
     final isCtrlOrMeta = HardwareKeyboard.instance.isControlPressed ||
@@ -232,13 +381,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
       _openFindBar();
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
+    if (_isTvCursorActivationKey(event.logicalKey)) {
       if (_showFindBar && _findFocusNode.hasFocus) {
         if (isShift) {
           _findPrevious();
         } else {
           _findNext();
         }
+        return KeyEventResult.handled;
+      }
+      if (isTv && _webViewFocusNode.hasFocus) {
+        _clickTvCursor();
         return KeyEventResult.handled;
       }
     }
@@ -257,26 +410,45 @@ class _WebViewScreenState extends State<WebViewScreen> {
         });
         return KeyEventResult.handled;
 
-      // D-pad scroll inside WebView via JS
       case LogicalKeyboardKey.arrowUp:
         if (!useRemoteScroll) return KeyEventResult.ignored;
+        if (isTv && _webViewFocusNode.hasFocus) {
+          _moveTvCursor(0, -_tvCursorStep);
+          return KeyEventResult.handled;
+        }
         _webViewController?.evaluateJavascript(
-            source: 'window.scrollBy(0, -200)');
+          source: 'window.scrollBy(0, -200)',
+        );
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
         if (!useRemoteScroll) return KeyEventResult.ignored;
+        if (isTv && _webViewFocusNode.hasFocus) {
+          _moveTvCursor(0, _tvCursorStep);
+          return KeyEventResult.handled;
+        }
         _webViewController?.evaluateJavascript(
-            source: 'window.scrollBy(0, 200)');
+          source: 'window.scrollBy(0, 200)',
+        );
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
         if (!useRemoteScroll) return KeyEventResult.ignored;
+        if (isTv && _webViewFocusNode.hasFocus) {
+          _moveTvCursor(-_tvCursorStep, 0);
+          return KeyEventResult.handled;
+        }
         _webViewController?.evaluateJavascript(
-            source: 'window.scrollBy(-200, 0)');
+          source: 'window.scrollBy(-200, 0)',
+        );
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
         if (!useRemoteScroll) return KeyEventResult.ignored;
+        if (isTv && _webViewFocusNode.hasFocus) {
+          _moveTvCursor(_tvCursorStep, 0);
+          return KeyEventResult.handled;
+        }
         _webViewController?.evaluateJavascript(
-            source: 'window.scrollBy(200, 0)');
+          source: 'window.scrollBy(200, 0)',
+        );
         return KeyEventResult.handled;
 
       default:
@@ -289,6 +461,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
     if (!DeviceProfileService.instance.isAndroidTv) {
       _webViewFocusNode.requestFocus();
     }
+  }
+
+  void _focusWebViewForTv() {
+    if (!DeviceProfileService.instance.isAndroidTv || !mounted) {
+      return;
+    }
+    _webViewFocusNode.requestFocus();
+    _activateTvCursor();
+    _showTvCursorHintIfNeeded();
   }
 
   Future<void> _handleLoadStart(
@@ -334,6 +515,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
       _isLoading = true;
       _loadingProgress = 0;
     });
+    if (DeviceProfileService.instance.isAndroidTv) {
+      _tvCursorReady = false;
+    }
   }
 
   Future<void> _handleLoadStop(InAppWebViewController controller, WebUri? url) async {
@@ -357,8 +541,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
     if (isChallengePage) {
       AppLogger.info(
-        'Skipping injected scripts while Cloudflare challenge is active',
+        'Skipping protection scripts while Cloudflare challenge is active',
       );
+      if (DeviceProfileService.instance.isAndroidTv) {
+        await _injectTvCursorHelpers(controller);
+      }
     } else {
       await _injectPageHelpers(
         controller,
@@ -375,6 +562,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
 
     await _persistCookies();
+
+    if (DeviceProfileService.instance.isAndroidTv) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _focusWebViewForTv();
+      });
+    }
   }
 
   Future<void> _injectPageHelpers(
@@ -402,14 +595,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
 
     if (isTv) {
-      await controller.evaluateJavascript(
-        source: AdBlockerService.tvFocusOutlineJs,
-      );
+      await _injectTvCursorHelpers(controller);
     } else {
       await controller.evaluateJavascript(
         source: AdBlockerService.tvNavigationJs,
       );
     }
+  }
+
+  Future<void> _injectTvCursorHelpers(InAppWebViewController controller) async {
+    await controller.evaluateJavascript(
+      source: AdBlockerService.tvFocusOutlineJs,
+    );
+    await controller.evaluateJavascript(
+      source: AdBlockerService.tvVirtualCursorJs,
+    );
+    await controller.evaluateJavascript(
+      source: AdBlockerService.jsTvCursorActivate,
+    );
   }
 
   void _handleProgressChanged(InAppWebViewController controller, int progress) {
@@ -606,7 +809,32 @@ class _WebViewScreenState extends State<WebViewScreen> {
                       : Focus(
                     focusNode: _webViewFocusNode,
                     onKeyEvent: _handleKeyEvent,
-                    child: widget.compatibilityMode
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: isTv && _webViewFocusNode.hasFocus
+                            ? Border.all(
+                                color: ClearCastColors.lime,
+                                width: 3,
+                              )
+                            : null,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, webConstraints) {
+                          final webSize = webConstraints.biggest;
+                          if (isTv && webSize.width > 0) {
+                            if (!_tvCursorReady) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) {
+                                  return;
+                                }
+                                _resetTvCursor(webSize);
+                                if (_webViewFocusNode.hasFocus) {
+                                  setState(() => _tvCursorVisible = true);
+                                }
+                              });
+                            }
+                          }
+                          final webView = widget.compatibilityMode
                         ? PlainWebView(
                             url: widget.item.url,
                             settings: _adBlocker.webViewSettings(
@@ -651,6 +879,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         return null; // Allow the request
                       },
                       onReceivedError: _handleReceivedError,
+                    );
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              webView,
+                              if (isTv &&
+                                  _tvCursorVisible &&
+                                  _tvCursorReady &&
+                                  !_showFindBar)
+                                TvWebCursorOverlay(position: _tvCursor),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -664,6 +906,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Widget _buildTopBar(ResponsiveLayout r) {
+    final isTv = DeviceProfileService.instance.isAndroidTv;
     final badgeFont = r.toolbarBadgeFontSize();
     final badgeIcon = badgeFont + 3;
     return Container(
@@ -684,7 +927,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             layout: r,
             icon: Icons.arrow_back_rounded,
             label: 'Back',
-            autofocus: DeviceProfileService.instance.isAndroidTv,
+            onToolbarFocus: _deactivateTvCursor,
             onTap: () async {
               final shouldPop = await _onWillPop();
               if (shouldPop && mounted) {
@@ -697,6 +940,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             layout: r,
             icon: Icons.home_rounded,
             label: 'Home',
+            onToolbarFocus: _deactivateTvCursor,
             onTap: _exitWebView,
           ),
           SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
@@ -704,6 +948,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             layout: r,
             icon: Icons.refresh_rounded,
             label: 'Reload',
+            onToolbarFocus: _deactivateTvCursor,
             onTap: () => _webViewController?.reload(),
           ),
           SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
@@ -711,8 +956,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
             layout: r,
             icon: Icons.open_in_browser_rounded,
             label: 'Browser',
+            onToolbarFocus: _deactivateTvCursor,
             onTap: _openInExternalBrowser,
           ),
+          if (isTv) ...[
+            SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
+            _TVButton(
+              layout: r,
+              icon: Icons.ads_click_rounded,
+              label: 'Page',
+              onToolbarFocus: _deactivateTvCursor,
+              onTap: _focusWebViewForTv,
+            ),
+          ],
           SizedBox(width: (r.w * 0.01).clamp(10.0, 20.0)),
           Expanded(
             child: Text(
@@ -904,6 +1160,7 @@ class _TVButton extends StatefulWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onToolbarFocus;
   final bool autofocus;
 
   const _TVButton({
@@ -911,6 +1168,7 @@ class _TVButton extends StatefulWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.onToolbarFocus,
     this.autofocus = false,
   });
 
@@ -927,7 +1185,12 @@ class _TVButtonState extends State<_TVButton> {
     return TvFocusable(
       autofocus: widget.autofocus,
       onPressed: widget.onTap,
-      onFocusChange: (v) => setState(() => _focused = v),
+      onFocusChange: (v) {
+        setState(() => _focused = v);
+        if (v) {
+          widget.onToolbarFocus?.call();
+        }
+      },
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(

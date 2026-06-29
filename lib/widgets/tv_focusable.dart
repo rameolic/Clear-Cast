@@ -86,13 +86,28 @@ class _TvFocusableState extends State<TvFocusable> {
 
   @override
   Widget build(BuildContext context) {
+    Widget child = widget.child;
+    if (widget.onPressed != null &&
+        !DeviceProfileService.instance.prefersDpadNavigation) {
+      child = MouseRegion(
+        cursor: widget.enabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        child: GestureDetector(
+          onTap: widget.enabled ? widget.onPressed : null,
+          behavior: HitTestBehavior.opaque,
+          child: child,
+        ),
+      );
+    }
+
     return Focus(
       focusNode: _node,
       autofocus: widget.autofocus,
       canRequestFocus: widget.enabled,
       skipTraversal: !widget.enabled,
       onKeyEvent: _handleKeyEvent,
-      child: widget.child,
+      child: child,
     );
   }
 }

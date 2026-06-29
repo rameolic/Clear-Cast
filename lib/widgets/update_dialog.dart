@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../services/update_service.dart';
@@ -36,7 +38,7 @@ class _UpdateDialogStateState extends State<UpdateDialog> {
     });
 
     try {
-      final filePath = await UpdateService().downloadApk(
+      final filePath = await UpdateService().downloadUpdate(
         widget.updateInfo.downloadUrl,
         (value) {
           if (!mounted) {
@@ -54,7 +56,7 @@ class _UpdateDialogStateState extends State<UpdateDialog> {
       }
 
       setState(() => _state = _UpdateDialogState.installing);
-      await UpdateService().installApk(filePath);
+      await UpdateService().installUpdate(filePath);
     } catch (e) {
       if (!mounted) {
         return;
@@ -73,7 +75,7 @@ class _UpdateDialogStateState extends State<UpdateDialog> {
                       return;
                     }
                     try {
-                      await UpdateService().installApk(path);
+                      await UpdateService().installUpdate(path);
                     } catch (installErr) {
                       if (!mounted) {
                         return;
@@ -189,9 +191,9 @@ class _UpdateDialogStateState extends State<UpdateDialog> {
 
   Widget _buildProgress() {
     if (_state == _UpdateDialogState.installing) {
-      return const Text(
-        'Installing...',
-        style: TextStyle(
+      return Text(
+        Platform.isMacOS ? 'Opening installer...' : 'Installing...',
+        style: const TextStyle(
           color: Colors.white,
           fontSize: 16,
           fontWeight: FontWeight.w700,

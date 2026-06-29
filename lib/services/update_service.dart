@@ -35,7 +35,65 @@ class UpdateService {
   static final UpdateService _instance = UpdateService._internal();
   factory UpdateService() => _instance;
 
+  static bool get supportsAutoUpdate {
+    if (kIsWeb) {
+      return false;
+    }
+    return Platform.isAndroid || Platform.isMacOS;
+  }
+
+  static List<String> get _preferredAssetExtensions {
+    if (Platform.isMacOS) {
+      return const ['.dmg', '.zip', '.pkg'];
+    }
+    if (Platform.isAndroid) {
+      return const ['.apk'];
+    }
+    return const [];
+  }
+
+  static String get _defaultDownloadBasename {
+    if (Platform.isMacOS) {
+      return 'clearcast-update.dmg';
+    }
+    return 'clearcast-update.apk';
+  }
+
+  /// GitHub releases page for the version after [currentVersion].
+  ///
+  /// Encodes `major.minor.patch` as a three-digit number (e.g. 1.0.2 → 102),
+  /// adds one, then decodes (102 → 1.0.3, 109 → 1.1.0).
+  static String nextReleaseVersion(String currentVersion) {
+    final versionOnly = currentVersion.split('+').first.trim();
+    final parts = versionOnly.split('.');
+    if (parts.length == 3) {
+      final nums = parts.map(int.tryParse).toList();
+      if (nums.every((n) => n != null && n >= 0 && n <= 9)) {
+        final encoded = nums[0]! * 100 + nums[1]! * 10 + nums[2]!;
+        final next = encoded + 1;
+        return '${next ~/ 100}.${(next ~/ 10) % 10}.${next % 10}';
+      }
+    }
+    return Version.parse(versionOnly).nextPatch.toString();
+  }
+
+  static Uri releasePageUrlForVersion(String version) {
+    final tag = version.startsWith('v') ? version : 'v$version';
+    return Uri.parse(
+      'https://github.com/$_githubOwner/$_githubRepo/releases/tag/$tag',
+    );
+  }
+
+  static Future<Uri> nextReleasePageUrl() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final next = nextReleaseVersion(packageInfo.version);
+    return releasePageUrlForVersion(next);
+  }
+
   Future<UpdateInfo?> checkForUpdate() async {
+    if (!supportsAutoUpdate) {
+      return null;
+    }
     if (_githubOwner == 'YOUR_GITHUB_USERNAME' ||
         _githubRepo == 'YOUR_REPO_NAME') {
       debugPrint('UpdateService: GitHub owner/repo not configured.');
@@ -113,13 +171,19 @@ class UpdateService {
       }
 
       String? downloadUrl;
-      for (final item in assets) {
-        if (item is! Map<String, dynamic>) {
-          continue;
+      final extensions = _preferredAssetExtensions;
+      for (final ext in extensions) {
+        for (final item in assets) {
+          if (item is! Map<String, dynamic>) {
+            continue;
+          }
+          final url = item['browser_download_url'] as String?;
+          if (url != null && url.toLowerCase().endsWith(ext)) {
+            downloadUrl = url;
+            break;
+          }
         }
-        final url = item['browser_download_url'] as String?;
-        if (url != null && url.toLowerCase().endsWith('.apk')) {
-          downloadUrl = url;
+        if (downloadUrl != null) {
           break;
         }
       }
@@ -147,6 +211,13 @@ class UpdateService {
     }
   }
 
+  Future<String> downloadUpdate(
+    String url,
+    void Function(double progress) onProgress,
+  ) async {
+    return downloadApk(url, onProgress);
+  }
+
   Future<String> downloadApk(
     String url,
     void Function(double progress) onProgress,
@@ -163,15 +234,19 @@ class UpdateService {
       }
 
       Directory? targetDir;
-      try {
-        targetDir = await getExternalStorageDirectory();
-      } catch (_) {
-        targetDir = null;
+      if (Platform.isAndroid) {
+        try {
+          targetDir = await getExternalStorageDirectory();
+        } catch (_) {
+          targetDir = null;
+        }
       }
+      targetDir ??= await getDownloadsDirectory();
       targetDir ??= await getTemporaryDirectory();
       await targetDir.create(recursive: true);
 
-      final file = File('${targetDir.path}/clearcast-update.apk');
+      final fileName = _downloadFileNameForUrl(url);
+      final file = File('${targetDir.path}/$fileName');
       if (await file.exists()) {
         await file.delete();
       }
@@ -200,7 +275,29 @@ class UpdateService {
     }
   }
 
+  static String _downloadFileNameForUrl(String url) {
+    final uri = Uri.tryParse(url);
+    final segment = uri?.pathSegments.isNotEmpty == true
+        ? uri!.pathSegments.last
+        : '';
+    if (segment.isNotEmpty && segment.contains('.')) {
+      return segment;
+    }
+    return _defaultDownloadBasename;
+  }
+
+  Future<void> installUpdate(String filePath) async {
+    return installApk(filePath);
+  }
+
   Future<void> installApk(String filePath) async {
+    if (Platform.isMacOS) {
+      final result = await OpenFile.open(filePath);
+      if (result.type != ResultType.done) {
+        throw Exception('Could not open installer: ${result.message}');
+      }
+      return;
+    }
     final result = await OpenFile.open(filePath,
         type: 'application/vnd.android.package-archive');
     if (result.type != ResultType.done) {

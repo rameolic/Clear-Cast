@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "flutter_tv_app",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "dependencies": [
         "cached_network_image",
         "flutter",

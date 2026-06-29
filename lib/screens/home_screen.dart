@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../layout/responsive_layout.dart';
 import '../theme/clearcast_colors.dart';
@@ -41,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadProtectionSetting();
     _loadUrls();
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (UpdateService.supportsAutoUpdate) {
       _updateCheckTimer = Timer(
         const Duration(seconds: 3),
         () => _checkForUpdates(),
@@ -78,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkForUpdates() async {
-    if (!mounted || defaultTargetPlatform != TargetPlatform.android) {
+    if (!mounted || !UpdateService.supportsAutoUpdate) {
       return;
     }
     final update = await UpdateService().checkForUpdate();
@@ -87,6 +88,37 @@ class _HomeScreenState extends State<HomeScreen> {
         context: context,
         barrierDismissible: false,
         builder: (_) => UpdateDialog(updateInfo: update),
+      );
+    }
+  }
+
+  Future<void> _openNextReleasePage() async {
+    final uri = await UpdateService.nextReleasePageUrl();
+    if (!mounted) {
+      return;
+    }
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.platformDefault,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open ${uri.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open release page: $e'),
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }
@@ -526,6 +558,54 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
                       Text(
                         'Refresh',
+                        style: TextStyle(
+                          color: focused
+                              ? ClearCastColors.lime
+                              : Colors.white.withValues(alpha: 0.5),
+                          fontSize: r.refreshLabelSize(),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          SizedBox(width: (r.w * 0.008).clamp(8.0, 14.0)),
+          TvFocusable(
+            onPressed: _openNextReleasePage,
+            child: Builder(
+              builder: (context) {
+                final focused = Focus.of(context).hasFocus;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: r.refreshButtonPadding(),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: focused
+                          ? ClearCastColors.lime
+                          : Colors.white.withValues(alpha: 0.2),
+                      width: focused ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: focused
+                        ? ClearCastColors.lime.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.system_update_rounded,
+                        color: focused
+                            ? ClearCastColors.lime
+                            : Colors.white.withValues(alpha: 0.5),
+                        size: r.refreshIconSize(),
+                      ),
+                      SizedBox(width: (r.w * 0.005).clamp(6.0, 12.0)),
+                      Text(
+                        'Check for update',
                         style: TextStyle(
                           color: focused
                               ? ClearCastColors.lime

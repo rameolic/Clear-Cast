@@ -1,59 +1,64 @@
-Running `(cd /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; ANDROID_HOME=/Users/rameolic/Library/Android/sdk TMPDIR=/var/folders/v_/tmf0mmns71551h3m_f3kxrnw0000gn/T/ PATH=/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/local/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/usr/local/bin:/Users/rameolic/.gem/ruby/2.6.0/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pkg/env/active/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/opt/homebrew/bin:/Users/rameolic/flutter/bin HOME=/Users/rameolic /Users/rameolic/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/rameolic/StudioProjects/Clearcast/.dart_tool/package_config.json /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/objective_c/7ad245dadc/hook.dill --config=/Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/objective_c/7ad245dadc/input.json )`.
-INFO: 2026-04-29 13:33:32.665325: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+Running `(cd /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; ANDROID_HOME=/Users/rameolic/Library/Android/sdk TMPDIR=/var/folders/v_/tmf0mmns71551h3m_f3kxrnw0000gn/T/ PATH=/Applications/Xcode.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/usr/local/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/local/bin:/Applications/Xcode.app/Contents/Developer/usr/bin:/Applications/Xcode.app/Contents/Developer/usr/local/bin:/Users/rameolic/.gem/ruby/2.6.0/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/opt/homebrew/bin:/Users/rameolic/flutter/bin HOME=/Users/rameolic /Users/rameolic/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/rameolic/StudioProjects/Clearcast/.dart_tool/package_config.json /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/objective_c/7ad245dadc/hook.dill --config=/Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/objective_c/7ad245dadc/input.json )`.
+INFO: 2026-06-29 20:07:17.900878: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-04-29 13:33:32.849673: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+INFO: 2026-06-29 20:07:18.072265: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
 
-INFO: 2026-04-29 13:33:32.872639: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
+INFO: 2026-06-29 20:07:18.096961: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
 
-INFO: 2026-04-29 13:33:32.873071: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+INFO: 2026-06-29 20:07:18.097886: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/test/util.c -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
 
-INFO: 2026-04-29 13:33:32.873493: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+tive_c.c.o
 
-INFO: 2026-04-29 13:33:32.873631: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+INFO: 2026-06-29 20:07:18.098101: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
 
-INFO: 2026-04-29 13:33:32.874365: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
+INFO: 2026-06-29 20:07:18.098494: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
 
-INFO: 2026-04-29 13:33:32.874758: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
-INFO: 2026-04-29 13:33:32.875072: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+INFO: 2026-06-29 20:07:18.098752: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/observer.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
 
-INFO: 2026-04-29 13:33:33.169343: 
-INFO: 2026-04-29 13:33:33.169431: 
-INFO: 2026-04-29 13:33:33.169516: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
+INFO: 2026-06-29 20:07:18.099152: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/ns_number.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
 
-INFO: 2026-04-29 13:33:33.169857: 
-INFO: 2026-04-29 13:33:33.169882: 
-INFO: 2026-04-29 13:33:33.169893: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
+INFO: 2026-06-29 20:07:18.099589: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
 
-INFO: 2026-04-29 13:33:33.169990: 
-INFO: 2026-04-29 13:33:33.170001: 
-INFO: 2026-04-29 13:33:33.170012: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+INFO: 2026-06-29 20:07:18.100123: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/rameolic/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
 
-INFO: 2026-04-29 13:33:33.170105: 
-INFO: 2026-04-29 13:33:33.170117: 
-INFO: 2026-04-29 13:33:33.170126: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
+INFO: 2026-06-29 20:07:18.497539: 
+INFO: 2026-06-29 20:07:18.497861: 
+INFO: 2026-06-29 20:07:18.497956: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+INFO: 2026-06-29 20:07:18.498793: 
+INFO: 2026-06-29 20:07:18.498847: 
+INFO: 2026-06-29 20:07:18.498874: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o
 
-INFO: 2026-04-29 13:33:33.179674: 
-INFO: 2026-04-29 13:33:33.179705: 
-INFO: 2026-04-29 13:33:33.179715: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
+INFO: 2026-06-29 20:07:18.514143: 
+INFO: 2026-06-29 20:07:18.514224: 
+INFO: 2026-06-29 20:07:18.514251: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
 
-INFO: 2026-04-29 13:33:33.506118: 
-INFO: 2026-04-29 13:33:33.506199: 
-INFO: 2026-04-29 13:33:33.506232: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
+INFO: 2026-06-29 20:07:18.521494: 
+INFO: 2026-06-29 20:07:18.521593: 
+INFO: 2026-06-29 20:07:18.521626: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
 
-INFO: 2026-04-29 13:33:33.529864: 
-INFO: 2026-04-29 13:33:33.529907: 
-INFO: 2026-04-29 13:33:33.529918: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
-INFO: 2026-04-29 13:33:33.530017: 
-INFO: 2026-04-29 13:33:33.530032: 
-INFO: 2026-04-29 13:33:33.530045: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+INFO: 2026-06-29 20:07:18.535049: 
+INFO: 2026-06-29 20:07:18.535126: 
+INFO: 2026-06-29 20:07:18.535219: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
 
-INFO: 2026-04-29 13:33:33.546183: 
-INFO: 2026-04-29 13:33:33.546272: 
-INFO: 2026-04-29 13:33:33.546326: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+INFO: 2026-06-29 20:07:19.284444: 
+INFO: 2026-06-29 20:07:19.284525: 
+INFO: 2026-06-29 20:07:19.284556: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
 
-INFO: 2026-04-29 13:33:33.547154: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+INFO: 2026-06-29 20:07:19.306507: 
+INFO: 2026-06-29 20:07:19.306575: 
+INFO: 2026-06-29 20:07:19.306606: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
 
-INFO: 2026-04-29 13:33:33.729911: 
-INFO: 2026-04-29 13:33:33.729999: 
-INFO: 2026-04-29 13:33:33.730009: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+INFO: 2026-06-29 20:07:19.311618: 
+INFO: 2026-06-29 20:07:19.311683: 
+INFO: 2026-06-29 20:07:19.311723: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-06-29 20:07:19.358778: 
+INFO: 2026-06-29 20:07:19.358843: 
+INFO: 2026-06-29 20:07:19.358868: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-06-29 20:07:19.359572: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o -o /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+
+INFO: 2026-06-29 20:07:19.571253: 
+INFO: 2026-06-29 20:07:19.571336: 
+INFO: 2026-06-29 20:07:19.571355: Generated /Users/rameolic/StudioProjects/Clearcast/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
 
