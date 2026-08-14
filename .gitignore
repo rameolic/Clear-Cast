@@ -4,3 +4,4 @@
 /.dart_tool
 clearcast-upload.jks
 android_keystore_base64.txt
+android/key.properties

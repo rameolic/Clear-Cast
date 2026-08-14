@@ -14,7 +14,6 @@ import '../services/logger_service.dart';
 import '../services/navigation_guard_service.dart';
 import '../widgets/plain_webview.dart';
 import '../widgets/tv_focusable.dart';
-import '../widgets/tv_web_cursor_overlay.dart';
 
 class WebViewScreen extends StatefulWidget {
   final UrlItem item;
@@ -37,8 +36,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _isLoading = true;
   double _loadingProgress = 0;
   String _currentTitle = '';
-  bool _canGoBack = false;
   final FocusNode _webViewFocusNode = FocusNode();
+  final FocusNode _backButtonFocusNode = FocusNode();
   final TextEditingController _findController = TextEditingController();
   final FocusNode _findFocusNode = FocusNode();
   bool _showFindBar = false;
@@ -49,14 +48,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
   final CookieStorageService _cookieStorage = CookieStorageService();
   Uri? _lastCommittedMainFrameUri;
   DateTime? _lastCommittedAt;
-  Uri? _pinnedAllowedPageUri;
   bool _tvCursorHintShown = false;
   static const double _tvCursorStep = 28;
+  static const double _tvCursorMaxStep = 96;
   static const double _tvEdgeScroll = 48;
   Offset _tvCursor = Offset.zero;
   Size _tvWebViewSize = Size.zero;
   bool _tvCursorReady = false;
-  bool _tvCursorVisible = false;
+  bool _handlingBack = false;
+  int _heldMoves = 0;
+  LogicalKeyboardKey? _heldDirection;
 
   bool _shouldCancelTopLevelNavigation(WebUri? targetUrl) {
     final url = targetUrl?.toString() ?? '';
@@ -115,6 +116,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
     );
     _prepareCookies();
     _webViewFocusNode.addListener(_handleWebViewFocusChanged);
+    _findFocusNode.addListener(_onFindFocusChanged);
+  }
+
+  void _onFindFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _handleWebViewFocusChanged() {
@@ -133,16 +141,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
         );
       }
     }
-    if (mounted) {
-      setState(() => _tvCursorVisible = hasPageFocus);
-    }
   }
 
-  void _resetTvCursor(Size size) {
+  void _ensureTvCursor(Size size) {
     if (!DeviceProfileService.instance.isAndroidTv || size.width <= 0) {
       return;
     }
     _tvWebViewSize = size;
+    if (_tvCursorReady) {
+      return;
+    }
     _tvCursor = Offset(size.width / 2, size.height / 2);
     _tvCursorReady = true;
     _syncTvCursorToJs();
@@ -160,45 +168,50 @@ class _WebViewScreenState extends State<WebViewScreen> {
     );
   }
 
-  void _moveTvCursor(double dx, double dy) {
+  double _acceleratedStep() {
+    return (_tvCursorStep + _heldMoves * 8).clamp(
+      _tvCursorStep,
+      _tvCursorMaxStep,
+    );
+  }
+
+  bool _moveTvCursor(double dx, double dy) {
     if (!_tvCursorReady) {
-      return;
+      return false;
     }
-    const step = _tvCursorStep;
     const edge = _tvEdgeScroll;
     var x = _tvCursor.dx + dx;
     var y = _tvCursor.dy + dy;
 
+    if (y < edge && dy < 0) {
+      _backButtonFocusNode.requestFocus();
+      return true;
+    }
+
     if (x < edge && dx < 0) {
       _webViewController?.evaluateJavascript(
-        source: 'window.scrollBy(${-step.toInt()}, 0)',
+        source: 'window.scrollBy(${dx.toInt()}, 0)',
       );
       x = edge;
     } else if (x > _tvWebViewSize.width - edge && dx > 0) {
       _webViewController?.evaluateJavascript(
-        source: 'window.scrollBy(${step.toInt()}, 0)',
+        source: 'window.scrollBy(${dx.toInt()}, 0)',
       );
       x = _tvWebViewSize.width - edge;
     }
-    if (y < edge && dy < 0) {
+    if (y > _tvWebViewSize.height - edge && dy > 0) {
       _webViewController?.evaluateJavascript(
-        source: 'window.scrollBy(0, ${-step.toInt()})',
-      );
-      y = edge;
-    } else if (y > _tvWebViewSize.height - edge && dy > 0) {
-      _webViewController?.evaluateJavascript(
-        source: 'window.scrollBy(0, ${step.toInt()})',
+        source: 'window.scrollBy(0, ${dy.toInt()})',
       );
       y = _tvWebViewSize.height - edge;
     }
 
-    setState(() {
-      _tvCursor = Offset(
-        x.clamp(0, _tvWebViewSize.width),
-        y.clamp(0, _tvWebViewSize.height),
-      );
-    });
+    _tvCursor = Offset(
+      x.clamp(0, _tvWebViewSize.width),
+      y.clamp(0, _tvWebViewSize.height),
+    );
     _syncTvCursorToJs();
+    return true;
   }
 
   void _clickTvCursor() {
@@ -214,21 +227,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
     _webViewController?.evaluateJavascript(
       source: AdBlockerService.jsTvCursorDeactivate,
     );
-    if (mounted) {
-      setState(() => _tvCursorVisible = false);
-    }
   }
 
   void _activateTvCursor() {
-    if (_tvWebViewSize.width > 0) {
-      _resetTvCursor(_tvWebViewSize);
-    }
     _webViewController?.evaluateJavascript(
       source: AdBlockerService.jsTvCursorActivate,
     );
-    if (mounted) {
-      setState(() => _tvCursorVisible = true);
-    }
+    _syncTvCursorToJs();
   }
 
   void _showTvCursorHintIfNeeded() {
@@ -239,7 +244,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'D-pad moves the cursor · OK / Enter clicks · ↑ toolbar · Back exits',
+          'D-pad moves the cursor · OK / Enter clicks · ↑ toolbar · Back goes to previous page',
         ),
         duration: Duration(seconds: 4),
       ),
@@ -247,8 +252,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _prepareCookies() async {
-    final restored =
-        await _cookieStorage.restoreForItem(widget.item.url);
+    final restored = await _cookieStorage.restoreForItem(
+      widget.item.url,
+      extraUrls: widget.item.allowedUrls,
+    );
     final stored = await _cookieStorage.storedCountForItem(widget.item.url);
     if (mounted) {
       setState(() {
@@ -265,6 +272,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
     final saved = await _cookieStorage.saveForItem(
       widget.item.url,
+      extraUrls: widget.item.allowedUrls,
       webViewController: controller,
     );
     if (mounted && saved > 0) {
@@ -279,22 +287,44 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  Future<void> _handleBack() async {
+    if (_handlingBack) {
+      return;
+    }
+    _handlingBack = true;
+    try {
+      if (_showFindBar) {
+        await _closeFindBar();
+        return;
+      }
+      final controller = _webViewController;
+      if (controller != null && await controller.canGoBack()) {
+        await controller.goBack();
+        return;
+      }
+      await _exitWebView();
+    } finally {
+      _handlingBack = false;
+    }
+  }
+
   @override
   void dispose() {
     _webViewFocusNode.removeListener(_handleWebViewFocusChanged);
+    _findFocusNode.removeListener(_onFindFocusChanged);
     _webViewFocusNode.dispose();
+    _backButtonFocusNode.dispose();
     _findController.dispose();
     _findFocusNode.dispose();
+    _findInteractionController.dispose();
     super.dispose();
   }
 
   void _openFindBar() {
     setState(() {
       _showFindBar = true;
-      if (DeviceProfileService.instance.isAndroidTv) {
-        _tvCursorVisible = false;
-      }
     });
+    _deactivateTvCursor();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -350,38 +380,92 @@ class _WebViewScreenState extends State<WebViewScreen> {
     await _findInteractionController.findNext(forward: false);
   }
 
-  /// Handle hardware back button and D-pad back
-  Future<bool> _onWillPop() async {
-    if (_canGoBack && _webViewController != null) {
-      await _webViewController!.goBack();
-      return false;
-    }
-    return true;
-  }
-
   bool _isTvCursorActivationKey(LogicalKeyboardKey key) {
     return TvActivationKeys.isActivationKey(key);
   }
 
-  /// Handle TV remote key events when WebView has focus
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+  KeyEventResult _handleArrow(LogicalKeyboardKey key, {required bool repeat}) {
     final isTv = DeviceProfileService.instance.isAndroidTv;
     final useRemoteScroll =
         DeviceProfileService.instance.prefersDpadNavigation;
+    if (!useRemoteScroll) {
+      return KeyEventResult.ignored;
+    }
+
+    if (!repeat || _heldDirection != key) {
+      _heldMoves = 0;
+      _heldDirection = key;
+    } else {
+      _heldMoves++;
+    }
+    final step = _acceleratedStep();
+
+    if (isTv && _webViewFocusNode.hasFocus) {
+      switch (key) {
+        case LogicalKeyboardKey.arrowUp:
+          _moveTvCursor(0, -step);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowDown:
+          _moveTvCursor(0, step);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowLeft:
+          _moveTvCursor(-step, 0);
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.arrowRight:
+          _moveTvCursor(step, 0);
+          return KeyEventResult.handled;
+        default:
+          break;
+      }
+    }
+
+    switch (key) {
+      case LogicalKeyboardKey.arrowUp:
+        _webViewController?.evaluateJavascript(
+          source: 'window.scrollBy(0, -200)',
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown:
+        _webViewController?.evaluateJavascript(
+          source: 'window.scrollBy(0, 200)',
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        _webViewController?.evaluateJavascript(
+          source: 'window.scrollBy(-200, 0)',
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _webViewController?.evaluateJavascript(
+          source: 'window.scrollBy(200, 0)',
+        );
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final isTv = DeviceProfileService.instance.isAndroidTv;
     final isCtrlOrMeta = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
     final isShift = HardwareKeyboard.instance.isShiftPressed;
+    final repeat = event is KeyRepeatEvent;
 
-    if (event.logicalKey == LogicalKeyboardKey.keyF && isCtrlOrMeta) {
+    if (!repeat &&
+        event.logicalKey == LogicalKeyboardKey.keyF &&
+        isCtrlOrMeta) {
       _openFindBar();
       return KeyEventResult.handled;
     }
-    if (event.logicalKey == LogicalKeyboardKey.slash) {
+    if (!repeat && event.logicalKey == LogicalKeyboardKey.slash) {
       _openFindBar();
       return KeyEventResult.handled;
     }
-    if (_isTvCursorActivationKey(event.logicalKey)) {
+    if (!repeat && _isTvCursorActivationKey(event.logicalKey)) {
       if (_showFindBar && _findFocusNode.hasFocus) {
         if (isShift) {
           _findPrevious();
@@ -399,58 +483,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
     switch (event.logicalKey) {
       case LogicalKeyboardKey.goBack:
       case LogicalKeyboardKey.escape:
-        if (_showFindBar) {
-          _closeFindBar();
+        if (repeat) {
           return KeyEventResult.handled;
         }
-        _onWillPop().then((shouldPop) {
-          if (shouldPop && mounted) {
-            _exitWebView();
-          }
-        });
+        _handleBack();
         return KeyEventResult.handled;
-
       case LogicalKeyboardKey.arrowUp:
-        if (!useRemoteScroll) return KeyEventResult.ignored;
-        if (isTv && _webViewFocusNode.hasFocus) {
-          _moveTvCursor(0, -_tvCursorStep);
-          return KeyEventResult.handled;
-        }
-        _webViewController?.evaluateJavascript(
-          source: 'window.scrollBy(0, -200)',
-        );
-        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
-        if (!useRemoteScroll) return KeyEventResult.ignored;
-        if (isTv && _webViewFocusNode.hasFocus) {
-          _moveTvCursor(0, _tvCursorStep);
-          return KeyEventResult.handled;
-        }
-        _webViewController?.evaluateJavascript(
-          source: 'window.scrollBy(0, 200)',
-        );
-        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
-        if (!useRemoteScroll) return KeyEventResult.ignored;
-        if (isTv && _webViewFocusNode.hasFocus) {
-          _moveTvCursor(-_tvCursorStep, 0);
-          return KeyEventResult.handled;
-        }
-        _webViewController?.evaluateJavascript(
-          source: 'window.scrollBy(-200, 0)',
-        );
-        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
-        if (!useRemoteScroll) return KeyEventResult.ignored;
-        if (isTv && _webViewFocusNode.hasFocus) {
-          _moveTvCursor(_tvCursorStep, 0);
-          return KeyEventResult.handled;
-        }
-        _webViewController?.evaluateJavascript(
-          source: 'window.scrollBy(200, 0)',
-        );
-        return KeyEventResult.handled;
-
+        return _handleArrow(event.logicalKey, repeat: repeat);
       default:
         return KeyEventResult.ignored;
     }
@@ -476,65 +518,31 @@ class _WebViewScreenState extends State<WebViewScreen> {
     InAppWebViewController controller,
     WebUri? url,
   ) async {
-    final started = Uri.tryParse(url?.toString() ?? '');
     AppLogger.info('WebView load start: ${url?.toString() ?? widget.item.url}');
-
-    if (started != null &&
-        NavigationGuard.isScriptedBounceToSheetEntry(
-          sheetItemUrl: widget.item.url,
-          allowedUrls: widget.item.allowedUrls,
-          previous: _lastCommittedMainFrameUri,
-          previousAt: _lastCommittedAt,
-          hasGesture: false,
-          target: started,
-        )) {
-      final restore = _pinnedAllowedPageUri ?? _lastCommittedMainFrameUri;
-      AppLogger.warn(
-        'Stopped catalog bounce in onLoadStart: ${restore.toString()} -> ${started.toString()}',
-      );
-      await controller.stopLoading();
-      if (restore != null) {
-        await controller.loadUrl(
-          urlRequest: URLRequest(url: WebUri(restore.toString())),
-        );
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Blocked an automatic redirect back to the catalog page.',
-            ),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+    if (!mounted) {
       return;
     }
-
     setState(() {
       _isLoading = true;
       _loadingProgress = 0;
     });
-    if (DeviceProfileService.instance.isAndroidTv) {
-      _tvCursorReady = false;
-    }
   }
 
-  Future<void> _handleLoadStop(InAppWebViewController controller, WebUri? url) async {
-    AppLogger.info('WebView load finished: ${url?.toString() ?? widget.item.url}');
+  Future<void> _handleLoadStop(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
+    AppLogger.info(
+      'WebView load finished: ${url?.toString() ?? widget.item.url}',
+    );
     final committed = Uri.tryParse(url?.toString() ?? '');
     if (committed != null) {
       _lastCommittedMainFrameUri = committed;
       _lastCommittedAt = DateTime.now();
-      if (NavigationGuard.isOnAllowedExternalSite(
-        sheetItemUrl: widget.item.url,
-        allowedUrls: widget.item.allowedUrls,
-        uri: committed,
-      )) {
-        _pinnedAllowedPageUri = committed;
-      }
     }
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
 
     final title = await controller.getTitle();
     final isChallengePage = NavigationGuard.looksLikeCloudflareChallenge(title);
@@ -554,10 +562,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       );
     }
 
-    final canGoBack = await controller.canGoBack();
-    setState(() => _canGoBack = canGoBack);
-
-    if (title != null && title.isNotEmpty) {
+    if (title != null && title.isNotEmpty && mounted) {
       setState(() => _currentTitle = title);
     }
 
@@ -613,6 +618,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     await controller.evaluateJavascript(
       source: AdBlockerService.jsTvCursorActivate,
     );
+    _syncTvCursorToJs();
   }
 
   void _handleProgressChanged(InAppWebViewController controller, int progress) {
@@ -623,19 +629,46 @@ class _WebViewScreenState extends State<WebViewScreen> {
     InAppWebViewController controller,
     WebUri? url,
     bool? isReload,
-  ) async {
-    // History updates are tracked via onLoadStop committed URL.
-  }
+  ) async {}
 
   void _handleReceivedError(
     InAppWebViewController controller,
     WebResourceRequest request,
     WebResourceError error,
   ) {
-    if (widget.compatibilityMode) {
+    if (request.isForMainFrame != true) {
       return;
     }
-    // Silently ignore blocked resource errors.
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Page failed to load: ${error.description}',
+        ),
+        action: SnackBarAction(
+          label: 'Retry',
+          onPressed: () => controller.reload(),
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<PermissionResponse?> _handlePermissionRequest(
+    InAppWebViewController controller,
+    PermissionRequest permissionRequest,
+  ) async {
+    final grantMedia = permissionRequest.resources.contains(
+      PermissionResourceType.PROTECTED_MEDIA_ID,
+    );
+    return PermissionResponse(
+      resources: permissionRequest.resources,
+      action: grantMedia
+          ? PermissionResponseAction.GRANT
+          : PermissionResponseAction.DENY,
+    );
   }
 
   Future<void> _openInExternalBrowser() async {
@@ -761,22 +794,36 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return NavigationActionPolicy.ALLOW;
   }
 
+  Future<WebResourceResponse?> _interceptRequest(
+    InAppWebViewController controller,
+    WebResourceRequest request,
+  ) async {
+    if (widget.compatibilityMode) {
+      return null;
+    }
+    final url = request.url.toString();
+    if (_adBlocker.shouldBlock(url)) {
+      AppLogger.warn('Blocked resource request: $url');
+      return WebResourceResponse(
+        contentType: 'text/plain',
+        statusCode: 204,
+        reasonPhrase: 'No Content',
+        headers: {'Content-Length': '0'},
+        data: Uint8List(0),
+      );
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (!context.mounted) {
+        if (didPop) {
           return;
         }
-        if (shouldPop) {
-          await _persistCookies();
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
-        }
+        await _handleBack();
       },
       child: Scaffold(
         backgroundColor: ClearCastColors.scaffold,
@@ -786,118 +833,87 @@ class _WebViewScreenState extends State<WebViewScreen> {
             final r = ResponsiveLayout(constraints.biggest, isTv: isTv);
             return TvNavigationScope(
               child: Column(
-              children: [
-                _buildTopBar(r),
-                if (_showFindBar) _buildFindBar(r),
-                if (_isLoading)
-                  LinearProgressIndicator(
-                    value: _loadingProgress > 0 ? _loadingProgress / 100 : null,
-                    backgroundColor: ClearCastColors.surfaceMuted,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      ClearCastColors.lime,
-                    ),
-                    minHeight:
-                        (r.toolbarHeight() * 0.05).clamp(2.0, 5.0).toDouble(),
-                  ),
-                Expanded(
-                  child: !_cookiesReady
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: ClearCastColors.lime,
-                          ),
-                        )
-                      : Focus(
-                    focusNode: _webViewFocusNode,
-                    onKeyEvent: _handleKeyEvent,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: isTv && _webViewFocusNode.hasFocus
-                            ? Border.all(
-                                color: ClearCastColors.lime,
-                                width: 3,
-                              )
-                            : null,
+                children: [
+                  _buildTopBar(r),
+                  if (_showFindBar) _buildFindBar(r),
+                  if (_isLoading)
+                    LinearProgressIndicator(
+                      value:
+                          _loadingProgress > 0 ? _loadingProgress / 100 : null,
+                      backgroundColor: ClearCastColors.surfaceMuted,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        ClearCastColors.lime,
                       ),
-                      child: LayoutBuilder(
-                        builder: (context, webConstraints) {
-                          final webSize = webConstraints.biggest;
-                          if (isTv && webSize.width > 0) {
-                            if (!_tvCursorReady) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted) {
-                                  return;
-                                }
-                                _resetTvCursor(webSize);
-                                if (_webViewFocusNode.hasFocus) {
-                                  setState(() => _tvCursorVisible = true);
-                                }
-                              });
-                            }
-                          }
-                          final webView = widget.compatibilityMode
-                        ? PlainWebView(
-                            url: widget.item.url,
-                            settings: _adBlocker.webViewSettings(
-                              compatibilityMode: true,
+                      minHeight:
+                          (r.toolbarHeight() * 0.05).clamp(2.0, 5.0).toDouble(),
+                    ),
+                  Expanded(
+                    child: !_cookiesReady
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: ClearCastColors.lime,
                             ),
-                            onWebViewCreated: _handleWebViewCreated,
-                            onLoadStart: _handleLoadStart,
-                            onLoadStop: _handleLoadStop,
-                            onProgressChanged: _handleProgressChanged,
-                            onUpdateVisitedHistory: _handleVisitedHistory,
-                            shouldOverrideUrlLoading: _handleNavigationOverride,
-                            onReceivedError: _handleReceivedError,
                           )
-                        : InAppWebView(
-                            findInteractionController: _findInteractionController,
-                            initialUrlRequest: URLRequest(
-                              url: WebUri(widget.item.url),
+                        : Focus(
+                            focusNode: _webViewFocusNode,
+                            onKeyEvent: _handleKeyEvent,
+                            child: LayoutBuilder(
+                              builder: (context, webConstraints) {
+                                final webSize = webConstraints.biggest;
+                                if (isTv && webSize.width > 0) {
+                                  _ensureTvCursor(webSize);
+                                }
+                                if (widget.compatibilityMode) {
+                                  return PlainWebView(
+                                    url: widget.item.url,
+                                    settings: _adBlocker.webViewSettings(
+                                      compatibilityMode: true,
+                                    ),
+                                    findInteractionController:
+                                        _findInteractionController,
+                                    onWebViewCreated: _handleWebViewCreated,
+                                    onLoadStart: _handleLoadStart,
+                                    onLoadStop: _handleLoadStop,
+                                    onProgressChanged: _handleProgressChanged,
+                                    onUpdateVisitedHistory:
+                                        _handleVisitedHistory,
+                                    shouldOverrideUrlLoading:
+                                        _handleNavigationOverride,
+                                    onCreateWindow: _handleCreateWindow,
+                                    onPermissionRequest:
+                                        _handlePermissionRequest,
+                                    onReceivedError: _handleReceivedError,
+                                  );
+                                }
+                                return InAppWebView(
+                                  findInteractionController:
+                                      _findInteractionController,
+                                  initialUrlRequest: URLRequest(
+                                    url: WebUri(widget.item.url),
+                                  ),
+                                  initialSettings: _adBlocker.webViewSettings(
+                                    compatibilityMode: false,
+                                  ),
+                                  onWebViewCreated: _handleWebViewCreated,
+                                  onLoadStart: _handleLoadStart,
+                                  onLoadStop: _handleLoadStop,
+                                  onProgressChanged: _handleProgressChanged,
+                                  onUpdateVisitedHistory:
+                                      _handleVisitedHistory,
+                                  onCreateWindow: _handleCreateWindow,
+                                  shouldOverrideUrlLoading:
+                                      _handleNavigationOverride,
+                                  shouldInterceptRequest: _interceptRequest,
+                                  onPermissionRequest:
+                                      _handlePermissionRequest,
+                                  onReceivedError: _handleReceivedError,
+                                );
+                              },
                             ),
-                            initialSettings: _adBlocker.webViewSettings(
-                              compatibilityMode: false,
-                            ),
-                            onWebViewCreated: _handleWebViewCreated,
-                            onLoadStart: _handleLoadStart,
-                            onLoadStop: _handleLoadStop,
-                            onProgressChanged: _handleProgressChanged,
-                            onUpdateVisitedHistory: _handleVisitedHistory,
-                            onCreateWindow: _handleCreateWindow,
-                      shouldOverrideUrlLoading: _handleNavigationOverride,
-                      shouldInterceptRequest: (controller, request) async {
-                        final url = request.url.toString();
-                        if (_adBlocker.shouldBlock(url)) {
-                          AppLogger.warn('Blocked resource request: $url');
-                          // Return empty response instead of the ad content
-                          return WebResourceResponse(
-                            contentType: 'text/plain',
-                            statusCode: 204,
-                            reasonPhrase: 'No Content',
-                            headers: {'Content-Length': '0'},
-                            data: Uint8List(0),
-                          );
-                        }
-                        return null; // Allow the request
-                      },
-                      onReceivedError: _handleReceivedError,
-                    );
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              webView,
-                              if (isTv &&
-                                  _tvCursorVisible &&
-                                  _tvCursorReady &&
-                                  !_showFindBar)
-                                TvWebCursorOverlay(position: _tvCursor),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
+                          ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             );
           },
         ),
@@ -927,13 +943,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
             layout: r,
             icon: Icons.arrow_back_rounded,
             label: 'Back',
+            focusNode: _backButtonFocusNode,
             onToolbarFocus: _deactivateTvCursor,
-            onTap: () async {
-              final shouldPop = await _onWillPop();
-              if (shouldPop && mounted) {
-                await _exitWebView();
+            onKeyEvent: (node, event) {
+              if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
+                  event.logicalKey == LogicalKeyboardKey.arrowDown &&
+                  isTv) {
+                _focusWebViewForTv();
+                return KeyEventResult.handled;
               }
+              return KeyEventResult.ignored;
             },
+            onTap: _handleBack,
           ),
           SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
           _TVButton(
@@ -951,13 +972,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
             onToolbarFocus: _deactivateTvCursor,
             onTap: () => _webViewController?.reload(),
           ),
+          if (!isTv) ...[
+            SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
+            _TVButton(
+              layout: r,
+              icon: Icons.open_in_browser_rounded,
+              label: 'Browser',
+              onToolbarFocus: _deactivateTvCursor,
+              onTap: _openInExternalBrowser,
+            ),
+          ],
           SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
           _TVButton(
             layout: r,
-            icon: Icons.open_in_browser_rounded,
-            label: 'Browser',
+            icon: Icons.find_in_page_rounded,
+            label: 'Find',
             onToolbarFocus: _deactivateTvCursor,
-            onTap: _openInExternalBrowser,
+            onTap: _openFindBar,
           ),
           if (isTv) ...[
             SizedBox(width: (r.w * 0.008).clamp(8.0, 16.0)),
@@ -1038,7 +1069,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   ),
                   SizedBox(width: (r.w * 0.004).clamp(4.0, 8.0)),
                   Text(
-                    widget.compatibilityMode ? 'PROTECTION OFF' : 'PROTECTION ON',
+                    widget.compatibilityMode
+                        ? 'PROTECTION OFF'
+                        : 'PROTECTION ON',
                     style: TextStyle(
                       color: widget.compatibilityMode
                           ? Colors.amberAccent
@@ -1057,6 +1090,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Widget _buildFindBar(ResponsiveLayout r) {
+    final displayMatch = _findTotalMatches == 0
+        ? 0
+        : (_findActiveMatch + 1).clamp(1, _findTotalMatches);
     return Container(
       color: ClearCastColors.surface,
       padding: EdgeInsets.fromLTRB(
@@ -1113,9 +1149,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             ),
             SizedBox(width: (r.w * 0.006).clamp(6.0, 12.0)),
             Text(
-              _findTotalMatches == 0
-                  ? '0'
-                  : '$_findActiveMatch/$_findTotalMatches',
+              _findTotalMatches == 0 ? '0' : '$displayMatch/$_findTotalMatches',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.72),
                 fontSize: r.toolbarBadgeFontSize(),
@@ -1154,13 +1188,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 }
 
-/// Reusable TV-focusable button for the top bar
 class _TVButton extends StatefulWidget {
   final ResponsiveLayout layout;
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final VoidCallback? onToolbarFocus;
+  final FocusNode? focusNode;
+  final KeyEventResult Function(FocusNode node, KeyEvent event)? onKeyEvent;
 
   const _TVButton({
     required this.layout,
@@ -1168,6 +1203,8 @@ class _TVButton extends StatefulWidget {
     required this.label,
     required this.onTap,
     this.onToolbarFocus,
+    this.focusNode,
+    this.onKeyEvent,
   });
 
   @override
@@ -1181,7 +1218,9 @@ class _TVButtonState extends State<_TVButton> {
   Widget build(BuildContext context) {
     final r = widget.layout;
     return TvFocusable(
+      focusNode: widget.focusNode,
       onPressed: widget.onTap,
+      onKeyEvent: widget.onKeyEvent,
       onFocusChange: (v) {
         setState(() => _focused = v);
         if (v) {

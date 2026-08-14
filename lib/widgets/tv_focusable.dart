@@ -12,6 +12,7 @@ class TvFocusable extends StatefulWidget {
   final void Function(bool)? onFocusChange;
   final bool scrollIntoView;
   final bool enabled;
+  final KeyEventResult Function(FocusNode node, KeyEvent event)? onKeyEvent;
 
   const TvFocusable({
     super.key,
@@ -22,6 +23,7 @@ class TvFocusable extends StatefulWidget {
     this.onFocusChange,
     this.scrollIntoView = true,
     this.enabled = true,
+    this.onKeyEvent,
   });
 
   @override
@@ -71,6 +73,12 @@ class _TvFocusableState extends State<TvFocusable> {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (widget.onKeyEvent != null) {
+      final extra = widget.onKeyEvent!(node, event);
+      if (extra != KeyEventResult.ignored) {
+        return extra;
+      }
+    }
     if (!widget.enabled || widget.onPressed == null) {
       return KeyEventResult.ignored;
     }

@@ -39,7 +39,7 @@ class DeviceProfileService {
   static final DeviceProfileService instance = DeviceProfileService._();
 
   static const MethodChannel _channel =
-      MethodChannel('com.example.flutter_tv_app/device');
+      MethodChannel('com.rameolic.clearcast/device');
 
   DeviceProfile _profile = DeviceProfile.desktop;
   bool _initialized = false;

@@ -95,18 +95,22 @@ Or sideload via a USB drive if your TV supports it.
 
 ---
 
-## 🎮 Remote Navigation
+## Remote navigation
 
 | Button | Action |
 |---|---|
-| **D-pad Up/Down/Left/Right** | Navigate between cards on home, scroll inside WebView |
-| **Select / OK / Enter** | Open selected URL |
-| **Back** | Go back in WebView history, or return to home |
-| **Menu** | (Not used — extendable) |
+| **D-pad** | Move between home cards, or move the in-page cursor inside a site |
+| **Select / OK / Enter** | Open a card, or click under the cursor |
+| **Back** | Previous WebView page, then home. On home, press Back twice to exit |
+| **Up (at top of page)** | Move focus to the toolbar |
 
----
+## Package id / sideload note
 
-## 🛡️ Ad Blocking
+The Android application id is `com.rameolic.clearcast`. Sideloaded installs of the old `com.example.flutter_tv_app` id will **not** update in place — uninstall the old build first.
+
+Release signing uses a gitignored `android/key.properties` (see `android/key.properties.example`) pointing at `clearcast-upload.jks`. Without that file, release builds fall back to the debug keystore.
+
+## Ad blocking
 
 The app blocks ads at two levels:
 
@@ -180,5 +184,5 @@ Edit `assets/blocklist.txt` and add one domain per line.
 - Scroll works via D-pad up/down inside WebView
 
 **Videos not playing**
-- Some sites require specific user agents — the app uses a Chrome Android UA
+- Some sites require a desktop Chrome user-agent on TV — that is already set for Android TV
 - `mediaPlaybackRequiresUserGesture: false` is already set in WebView settings

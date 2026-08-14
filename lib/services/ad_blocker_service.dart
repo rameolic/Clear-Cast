@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'device_profile_service.dart';
 import 'logger_service.dart';
 
 class AdBlockerService {
@@ -8,6 +9,11 @@ class AdBlockerService {
   /// Reduces false positives from bot overlays when protection is on.
   static String defaultProtectionUserAgent() {
     if (kIsWeb) {
+      return _chromeDesktopUa;
+    }
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        DeviceProfileService.instance.isAndroidTv) {
       return _chromeDesktopUa;
     }
     switch (defaultTargetPlatform) {
@@ -121,8 +127,6 @@ class AdBlockerService {
     const suspiciousTokens = <String>[
       'popup=',
       'popunder=',
-      'redirect_url=',
-      'redirect_uri=',
       'utm_source=push',
       'adurl=',
       'popads',
@@ -172,19 +176,8 @@ class AdBlockerService {
     '.ad-container',
     '.sponsored-content',
     '#ad-wrapper',
-    '[class*="popup"]',
-    '[id*="popup"]',
-    '[class*="overlay"]',
-    '[id*="overlay"]',
-    '[class*="modal"]',
-    '[id*="modal"]',
     '[class*="interstitial"]',
     '[id*="interstitial"]',
-    '[class*="captcha"]',
-    '[id*="captcha"]',
-    'iframe[src*="captcha"]',
-    'iframe[src*="cloudflare"]',
-    'iframe[src*="recaptcha"]',
   ];
 
   const textSignals = [
@@ -207,6 +200,12 @@ class AdBlockerService {
   }
 
   function looksLikeHijackOverlay(el) {
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'video' || tag === 'audio' || tag === 'canvas') return false;
+    if (el.querySelector && el.querySelector('video, audio')) return false;
+    const cls = ((el.className && el.className.toString) ? el.className.toString() : '').toLowerCase();
+    if (cls.indexOf('player') !== -1 || cls.indexOf('video') !== -1) return false;
+
     const text = (el.innerText || '').toLowerCase().trim();
     const hasSignalText = textSignals.some(signal => text.includes(signal));
     if (hasSignalText) return true;
@@ -266,19 +265,43 @@ class AdBlockerService {
 })();
 ''';
 
-  /// Visible virtual cursor logic for Android TV inside WebView.
-  /// The lime ring is drawn by Flutter ([TvWebViewCursorOverlay]); this script
-  /// handles D-pad keys that reach the WebView natively and performs clicks.
+  /// Visible virtual cursor for Android TV, drawn in-page (not Flutter overlay).
   static const String tvVirtualCursorJs = '''
 (function() {
   if (window.__tvCursor) return;
 
-  const STEP = 28;
   const EDGE = 48;
-
   let x = window.innerWidth / 2;
   let y = window.innerHeight / 2;
   let active = false;
+  let ring = null;
+
+  function ensureRing() {
+    if (ring && ring.isConnected) return;
+    ring = document.createElement('div');
+    ring.setAttribute('id', '__clearcast_tv_cursor');
+    ring.style.cssText = [
+      'position:fixed',
+      'width:30px',
+      'height:30px',
+      'margin-left:-15px',
+      'margin-top:-15px',
+      'border:3px solid #93C643',
+      'border-radius:50%',
+      'background:rgba(147,198,67,0.35)',
+      'pointer-events:none',
+      'z-index:2147483647',
+      'display:none'
+    ].join(';');
+    (document.body || document.documentElement).appendChild(ring);
+  }
+
+  function updateRing() {
+    ensureRing();
+    ring.style.left = x + 'px';
+    ring.style.top = y + 'px';
+    ring.style.display = active ? 'block' : 'none';
+  }
 
   function clickAt(px, py) {
     let el = document.elementFromPoint(px, py);
@@ -321,63 +344,30 @@ class AdBlockerService {
     let nx = Math.max(0, Math.min(maxX, x + dx));
     let ny = Math.max(0, Math.min(maxY, y + dy));
 
-    if (nx <= EDGE && dx < 0) window.scrollBy(-STEP, 0);
-    if (nx >= maxX - EDGE && dx > 0) window.scrollBy(STEP, 0);
-    if (ny <= EDGE && dy < 0) window.scrollBy(0, -STEP);
-    if (ny >= maxY - EDGE && dy > 0) window.scrollBy(0, STEP);
+    if (nx <= EDGE && dx < 0) window.scrollBy(dx, 0);
+    if (nx >= maxX - EDGE && dx > 0) window.scrollBy(dx, 0);
+    if (ny <= EDGE && dy < 0) window.scrollBy(0, dy);
+    if (ny >= maxY - EDGE && dy > 0) window.scrollBy(0, dy);
 
     x = nx;
     y = ny;
+    updateRing();
   }
 
-  function onKeyDown(e) {
-    if (!active) return;
-    const k = e.keyCode || e.which;
-    switch (k) {
-      case 38:
-        move(0, -STEP);
-        e.preventDefault();
-        e.stopPropagation();
-        break;
-      case 40:
-        move(0, STEP);
-        e.preventDefault();
-        e.stopPropagation();
-        break;
-      case 37:
-        move(-STEP, 0);
-        e.preventDefault();
-        e.stopPropagation();
-        break;
-      case 39:
-        move(STEP, 0);
-        e.preventDefault();
-        e.stopPropagation();
-        break;
-      case 13:
-      case 23:
-      case 66:
-        clickAt(x, y);
-        e.preventDefault();
-        e.stopPropagation();
-        break;
-    }
-  }
-
-  document.addEventListener('keydown', onKeyDown, true);
   window.addEventListener('resize', function() {
-    x = Math.min(x, window.innerWidth / 2);
-    y = Math.min(y, window.innerHeight / 2);
+    x = Math.min(x, Math.max(0, window.innerWidth - 1));
+    y = Math.min(y, Math.max(0, window.innerHeight - 1));
+    updateRing();
   });
 
   window.__tvCursor = {
     activate: function() {
-      x = window.innerWidth / 2;
-      y = window.innerHeight / 2;
       active = true;
+      updateRing();
     },
     deactivate: function() {
       active = false;
+      updateRing();
     },
     move: function(dx, dy) {
       if (active) move(dx, dy);
@@ -388,6 +378,7 @@ class AdBlockerService {
     setPosition: function(px, py) {
       x = px;
       y = py;
+      updateRing();
     },
     isActive: function() {
       return active;
@@ -432,7 +423,7 @@ class AdBlockerService {
   static String jsTvCursorSetPosition(double x, double y) =>
       'window.__tvCursor && window.__tvCursor.setPosition($x, $y);';
 
-  static String jsTvCursorMove(int dx, int dy) =>
+  static String jsTvCursorMove(double dx, double dy) =>
       'window.__tvCursor && window.__tvCursor.move($dx, $dy);';
 
   static const String jsTvCursorClick =
@@ -508,26 +499,33 @@ class AdBlockerService {
 
   /// WebView settings: [compatibilityMode] uses native default UA + permissive mixed content.
   /// Protection-on uses a real-browser UA, storage, and third-party cookies for sessions/embeds.
-  InAppWebViewSettings webViewSettings({required bool compatibilityMode}) =>
-      InAppWebViewSettings(
-        javaScriptEnabled: true,
-        isFindInteractionEnabled: true,
-        javaScriptCanOpenWindowsAutomatically: false,
-        mediaPlaybackRequiresUserGesture: false,
-        allowsInlineMediaPlayback: true,
-        useHybridComposition: true,
-        supportMultipleWindows: false,
-        supportZoom: false,
-        builtInZoomControls: false,
-        displayZoomControls: false,
-        mixedContentMode: compatibilityMode
-            ? MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE
-            : MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
-        databaseEnabled: true,
-        domStorageEnabled: true,
-        thirdPartyCookiesEnabled: true,
-        cacheMode: CacheMode.LOAD_DEFAULT,
-        userAgent:
-            compatibilityMode ? null : defaultProtectionUserAgent(),
-      );
+  InAppWebViewSettings webViewSettings({required bool compatibilityMode}) {
+    final isTv = DeviceProfileService.instance.isAndroidTv;
+    return InAppWebViewSettings(
+      javaScriptEnabled: true,
+      isFindInteractionEnabled: true,
+      javaScriptCanOpenWindowsAutomatically: true,
+      mediaPlaybackRequiresUserGesture: false,
+      allowsInlineMediaPlayback: true,
+      useHybridComposition: true,
+      supportMultipleWindows: true,
+      supportZoom: false,
+      builtInZoomControls: false,
+      displayZoomControls: false,
+      mixedContentMode: (compatibilityMode || isTv)
+          ? MixedContentMode.MIXED_CONTENT_COMPATIBILITY_MODE
+          : MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+      databaseEnabled: true,
+      domStorageEnabled: true,
+      thirdPartyCookiesEnabled: true,
+      cacheMode: CacheMode.LOAD_DEFAULT,
+      useShouldInterceptRequest: !compatibilityMode,
+      iframeAllow: 'fullscreen; autoplay; encrypted-media; picture-in-picture',
+      iframeAllowFullscreen: true,
+      preferredContentMode: isTv
+          ? UserPreferredContentMode.DESKTOP
+          : UserPreferredContentMode.RECOMMENDED,
+      userAgent: compatibilityMode ? null : defaultProtectionUserAgent(),
+    );
+  }
 }

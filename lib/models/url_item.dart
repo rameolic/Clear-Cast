@@ -76,4 +76,9 @@ class UrlItem {
       return '';
     }
   }
+
+  bool get hasHttpUrl {
+    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
+    return scheme == 'http' || scheme == 'https';
+  }
 }

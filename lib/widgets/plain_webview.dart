@@ -4,6 +4,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 class PlainWebView extends StatelessWidget {
   final String url;
   final InAppWebViewSettings settings;
+  final FindInteractionController? findInteractionController;
   final void Function(InAppWebViewController controller) onWebViewCreated;
   final void Function(InAppWebViewController controller, WebUri? url) onLoadStart;
   final void Function(InAppWebViewController controller, WebUri? url) onLoadStop;
@@ -18,6 +19,14 @@ class PlainWebView extends StatelessWidget {
     InAppWebViewController controller,
     NavigationAction navigationAction,
   )? shouldOverrideUrlLoading;
+  final Future<bool?> Function(
+    InAppWebViewController controller,
+    CreateWindowAction createWindowAction,
+  )? onCreateWindow;
+  final Future<PermissionResponse?> Function(
+    InAppWebViewController controller,
+    PermissionRequest permissionRequest,
+  )? onPermissionRequest;
   final void Function(
     InAppWebViewController controller,
     WebResourceRequest request,
@@ -28,12 +37,15 @@ class PlainWebView extends StatelessWidget {
     super.key,
     required this.url,
     required this.settings,
+    this.findInteractionController,
     required this.onWebViewCreated,
     required this.onLoadStart,
     required this.onLoadStop,
     required this.onProgressChanged,
     this.onUpdateVisitedHistory,
     this.shouldOverrideUrlLoading,
+    this.onCreateWindow,
+    this.onPermissionRequest,
     required this.onReceivedError,
   });
 
@@ -42,12 +54,15 @@ class PlainWebView extends StatelessWidget {
     return InAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(url)),
       initialSettings: settings,
+      findInteractionController: findInteractionController,
       onWebViewCreated: onWebViewCreated,
       onLoadStart: onLoadStart,
       onLoadStop: onLoadStop,
       onProgressChanged: onProgressChanged,
       onUpdateVisitedHistory: onUpdateVisitedHistory,
       shouldOverrideUrlLoading: shouldOverrideUrlLoading,
+      onCreateWindow: onCreateWindow,
+      onPermissionRequest: onPermissionRequest,
       onReceivedError: onReceivedError,
     );
   }

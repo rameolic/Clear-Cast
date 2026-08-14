@@ -16,7 +16,12 @@ class CookieStorageService {
 
   final CookieManager _cookieManager = CookieManager.instance();
 
-  String _prefsKey(String itemUrl) => '$_prefsPrefix${itemUrl.hashCode}';
+  String _prefsKey(String itemUrl) {
+    final uri = Uri.tryParse(itemUrl);
+    final host = (uri?.host ?? itemUrl).toLowerCase();
+    final path = uri?.path.isEmpty == true ? '/' : (uri?.path ?? '/');
+    return '$_prefsPrefix$host$path';
+  }
 
   String? _hostFor(String itemUrl) {
     try {
@@ -32,10 +37,21 @@ class CookieStorageService {
     return domain == siteHost || domain.endsWith('.$siteHost');
   }
 
+  List<String> _urlsForItem(String itemUrl, List<String> extraUrls) {
+    final urls = <String>{itemUrl};
+    for (final extra in extraUrls) {
+      if (extra.trim().isNotEmpty) {
+        urls.add(extra.trim());
+      }
+    }
+    return urls.toList();
+  }
+
   /// Loads stored cookies into the WebView cookie store before navigation.
   /// Returns how many cookies were applied.
   Future<int> restoreForItem(
     String itemUrl, {
+    List<String> extraUrls = const [],
     InAppWebViewController? webViewController,
   }) async {
     final host = _hostFor(itemUrl);
@@ -57,9 +73,9 @@ class CookieStorageService {
       return 0;
     }
 
-    final itemUri = WebUri(itemUrl);
     var restored = 0;
     final now = DateTime.now().millisecondsSinceEpoch;
+    final targetUrls = _urlsForItem(itemUrl, extraUrls);
 
     for (final entry in decoded) {
       if (entry is! Map) {
@@ -73,9 +89,25 @@ class CookieStorageService {
         continue;
       }
 
+      final cookieHost = (cookie.domain ?? host).toLowerCase().replaceFirst(
+            RegExp(r'^\.'),
+            '',
+          );
+      var setUrl = itemUrl;
+      for (final candidate in targetUrls) {
+        final candidateHost = _hostFor(candidate);
+        if (candidateHost != null &&
+            (cookieHost == candidateHost ||
+                cookieHost.endsWith('.$candidateHost') ||
+                candidateHost.endsWith('.$cookieHost'))) {
+          setUrl = candidate;
+          break;
+        }
+      }
+
       try {
         await _cookieManager.setCookie(
-          url: itemUri,
+          url: WebUri(setUrl),
           name: cookie.name,
           value: cookie.value?.toString() ?? '',
           path: cookie.path ?? '/',
@@ -126,10 +158,10 @@ class CookieStorageService {
     }
   }
 
-  /// Snapshots cookies for the sheet item's site and writes them to prefs.
-  /// Returns how many cookies were written.
+  /// Snapshots cookies for the sheet item's site and extra allowed hosts.
   Future<int> saveForItem(
     String itemUrl, {
+    List<String> extraUrls = const [],
     InAppWebViewController? webViewController,
   }) async {
     final host = _hostFor(itemUrl);
@@ -137,24 +169,34 @@ class CookieStorageService {
       return 0;
     }
 
-    final itemUri = WebUri(itemUrl);
     final merged = <String, Cookie>{};
+    final targetUrls = _urlsForItem(itemUrl, extraUrls);
+    final hosts = targetUrls
+        .map(_hostFor)
+        .whereType<String>()
+        .where((h) => h.isNotEmpty)
+        .toSet();
 
-    try {
-      for (final cookie in await _cookieManager.getCookies(
-        url: itemUri,
-        webViewController: webViewController,
-      )) {
-        merged[_cookieKey(cookie)] = cookie;
+    for (final url in targetUrls) {
+      try {
+        for (final cookie in await _cookieManager.getCookies(
+          url: WebUri(url),
+          webViewController: webViewController,
+        )) {
+          merged[_cookieKey(cookie)] = cookie;
+        }
+      } catch (e) {
+        AppLogger.warn('getCookies failed for $url: $e');
       }
-    } catch (e) {
-      AppLogger.warn('getCookies failed for $itemUrl: $e');
     }
 
     try {
       for (final cookie in await _cookieManager.getAllCookies()) {
-        if (_cookieMatchesSite(cookie, host)) {
-          merged[_cookieKey(cookie)] = cookie;
+        for (final siteHost in hosts) {
+          if (_cookieMatchesSite(cookie, siteHost)) {
+            merged[_cookieKey(cookie)] = cookie;
+            break;
+          }
         }
       }
     } catch (e) {

@@ -1,0 +1,4 @@
+storePassword = rameolic
+keyPassword = rameolic
+keyAlias = key
+storeFile = key.jks

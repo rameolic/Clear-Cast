@@ -3,6 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/url_item.dart';
 import 'logger_service.dart';
 
+class SheetsLoadResult {
+  final List<UrlItem> items;
+  final bool fromCache;
+
+  const SheetsLoadResult({required this.items, this.fromCache = false});
+}
+
 class SheetsService {
   /// ─────────────────────────────────────────────────────────────────────────
   /// HOW TO SET UP YOUR GOOGLE SHEET:
@@ -21,7 +28,7 @@ class SheetsService {
   ///
   ///  4. Configure values with --dart-define (optional):
   ///       --dart-define=SHEETS_PUBLISHED_SHEET_KEY=your_published_sheet_key
-  ///       --dart-define=SHEETS_SHEET_NAME=Sheet1
+  ///       --dart-define=SHEETS_GID=0
   ///
   ///  Example sheet row:
   ///    YouTube | https://youtube.com | https://i.imgur.com/xyz.png | Video |
@@ -31,9 +38,10 @@ class SheetsService {
     defaultValue:
         '2PACX-1vS7XItmvTnzSvsG1Xbt4f_Uwfxwcxs6pGQ-rDKvCmmWk1athbKlPEidCfQzM0RiDo1CC3tg8P1NcveH',
   );
-  static const String _sheetName =
-      String.fromEnvironment('SHEETS_SHEET_NAME', defaultValue: 'Sheet1');
-  static const String _sheetGid = '0';
+  static const String _sheetGid = String.fromEnvironment(
+    'SHEETS_GID',
+    defaultValue: '0',
+  );
 
   static const String _cacheBodyKey = 'sheets_cache_body_v2';
   static const String _cacheAtKey = 'sheets_cache_at';
@@ -42,17 +50,12 @@ class SheetsService {
       'https://docs.google.com/spreadsheets/d/e/$_sheetId/pub?gid=$_sheetGid&single=true&output=csv';
 
   /// Fetches URL list from Google Sheets; uses cached CSV when offline.
-  static Future<List<UrlItem>> fetchUrls() async {
+  static Future<SheetsLoadResult> fetchUrls() async {
     try {
       AppLogger.info('Fetching URLs from Google Sheets');
       if (_sheetId.isEmpty) {
         throw Exception(
           'Missing SHEETS_PUBLISHED_SHEET_KEY. Run app with --dart-define=SHEETS_PUBLISHED_SHEET_KEY=your_published_sheet_key',
-        );
-      }
-      if (_sheetName.isEmpty) {
-        throw Exception(
-          'Missing SHEETS_SHEET_NAME. Run app with --dart-define=SHEETS_SHEET_NAME=Sheet1',
         );
       }
 
@@ -69,12 +72,12 @@ class SheetsService {
       await _saveCache(response.body);
       final items = _parseCsvBody(response.body);
       AppLogger.info('Loaded ${items.length} URL entries from Sheets');
-      return items;
+      return SheetsLoadResult(items: items);
     } catch (e) {
       final cached = await _loadCachedItems();
       if (cached != null && cached.isNotEmpty) {
         AppLogger.warn('Using cached Sheets data after fetch error: $e');
-        return cached;
+        return SheetsLoadResult(items: cached, fromCache: true);
       }
       AppLogger.error('SheetsService fetch failed', e);
       throw Exception('SheetsService error: $e');
@@ -97,39 +100,40 @@ class SheetsService {
   }
 
   static List<UrlItem> _parseCsvBody(String body) {
-    final lines = body.split('\n');
+    final rows = _parseCsv(body);
     final items = <UrlItem>[];
-
-    for (int i = 1; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (line.isEmpty) continue;
-
-      final row = _parseCsvLine(line);
-      if (row.length >= 2 && row[1].isNotEmpty) {
-        final item = UrlItem.fromCsvRow(row);
-        if (item.allowedUrls.isNotEmpty) {
-          AppLogger.info(
-            'Sheet row "${item.title}" allowed URLs: ${item.allowedUrls.join(', ')}',
-          );
-        }
-        items.add(item);
+    for (int i = 1; i < rows.length; i++) {
+      final row = rows[i];
+      if (row.length < 2 || row[1].trim().isEmpty) {
+        continue;
       }
+      final item = UrlItem.fromCsvRow(row);
+      if (!item.hasHttpUrl) {
+        AppLogger.warn('Skipping non-http(s) sheet row "${item.title}": ${item.url}');
+        continue;
+      }
+      if (item.allowedUrls.isNotEmpty) {
+        AppLogger.info(
+          'Sheet row "${item.title}" allowed URLs: ${item.allowedUrls.join(', ')}',
+        );
+      }
+      items.add(item);
     }
     return items;
   }
 
-  /// Minimal CSV line parser that handles quoted fields
-  static List<String> _parseCsvLine(String line) {
-    final fields = <String>[];
+  /// CSV parser that keeps quoted fields (including embedded newlines) intact.
+  static List<List<String>> _parseCsv(String body) {
+    final rows = <List<String>>[];
+    var fields = <String>[];
     final buffer = StringBuffer();
-    bool inQuotes = false;
+    var inQuotes = false;
 
-    for (int i = 0; i < line.length; i++) {
-      final char = line[i];
-
+    for (int i = 0; i < body.length; i++) {
+      final char = body[i];
       if (char == '"') {
-        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-          buffer.write('"'); // escaped quote
+        if (inQuotes && i + 1 < body.length && body[i + 1] == '"') {
+          buffer.write('"');
           i++;
         } else {
           inQuotes = !inQuotes;
@@ -137,11 +141,27 @@ class SheetsService {
       } else if (char == ',' && !inQuotes) {
         fields.add(buffer.toString());
         buffer.clear();
+      } else if ((char == '\n' || char == '\r') && !inQuotes) {
+        if (char == '\r' && i + 1 < body.length && body[i + 1] == '\n') {
+          i++;
+        }
+        fields.add(buffer.toString());
+        buffer.clear();
+        if (fields.any((field) => field.trim().isNotEmpty)) {
+          rows.add(fields);
+        }
+        fields = <String>[];
       } else {
         buffer.write(char);
       }
     }
-    fields.add(buffer.toString());
-    return fields;
+
+    if (buffer.isNotEmpty || fields.isNotEmpty) {
+      fields.add(buffer.toString());
+      if (fields.any((field) => field.trim().isNotEmpty)) {
+        rows.add(fields);
+      }
+    }
+    return rows;
   }
 }
