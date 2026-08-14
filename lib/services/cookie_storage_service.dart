@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -190,17 +191,19 @@ class CookieStorageService {
       }
     }
 
-    try {
-      for (final cookie in await _cookieManager.getAllCookies()) {
-        for (final siteHost in hosts) {
-          if (_cookieMatchesSite(cookie, siteHost)) {
-            merged[_cookieKey(cookie)] = cookie;
-            break;
+    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.android) {
+      try {
+        for (final cookie in await _cookieManager.getAllCookies()) {
+          for (final siteHost in hosts) {
+            if (_cookieMatchesSite(cookie, siteHost)) {
+              merged[_cookieKey(cookie)] = cookie;
+              break;
+            }
           }
         }
+      } catch (e) {
+        AppLogger.warn('getAllCookies failed for $itemUrl: $e');
       }
-    } catch (e) {
-      AppLogger.warn('getAllCookies failed for $itemUrl: $e');
     }
 
     if (merged.isEmpty) {

@@ -25,4 +25,11 @@ class AppLogger {
     }
     debugPrint('[$_tag][ERROR] $message | $error');
   }
+
+  /// Filter with: `adb logcat | grep '\\[ClearCast\\]\\[WebView\\]'`
+  static void webView(String message) {
+    if (kDebugMode) {
+      debugPrint('[$_tag][WebView] $message');
+    }
+  }
 }

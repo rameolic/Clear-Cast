@@ -11,13 +11,14 @@ class AdBlockerService {
     if (kIsWeb) {
       return _chromeDesktopUa;
     }
-    if (!kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
-        DeviceProfileService.instance.isAndroidTv) {
-      return _chromeDesktopUa;
-    }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
+        if (DeviceProfileService.instance.isAndroidTv) {
+          // Fire TV WebView handles native HLS better than desktop-Chrome MSE.
+          return 'Mozilla/5.0 (Linux; Android 13; SHIELD Android TV) '
+              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 '
+              'Safari/537.36';
+        }
         return 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
             '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
       case TargetPlatform.iOS:
@@ -115,6 +116,64 @@ class AdBlockerService {
     return false;
   }
 
+  /// HLS/DASH/progressive media. These must not go through
+  /// [shouldInterceptRequest] — the Dart hop breaks range requests and MSE.
+  bool isMediaUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.startsWith('blob:') ||
+        lower.contains('googlevideo') ||
+        lower.contains('/videoplayback') ||
+        lower.contains('mime=video') ||
+        lower.contains('mime=audio')) {
+      return true;
+    }
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? lower;
+    const extensions = <String>[
+      '.m3u8',
+      '.mpd',
+      '.mp4',
+      '.webm',
+      '.m4s',
+      '.m4a',
+      '.ts',
+      '.aac',
+      '.mp3',
+    ];
+    for (final ext in extensions) {
+      if (path.endsWith(ext)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Skip intercept for media and static assets so playback is not stalled.
+  bool shouldSkipIntercept(String url) {
+    if (isMediaUrl(url)) {
+      return true;
+    }
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+    const extensions = <String>[
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.gif',
+      '.webp',
+      '.svg',
+      '.ico',
+      '.woff',
+      '.woff2',
+      '.ttf',
+      '.otf',
+    ];
+    for (final ext in extensions) {
+      if (path.endsWith(ext)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// Restrict navigation to safe web schemes only.
   bool isAllowedScheme(Uri uri) {
     final scheme = uri.scheme.toLowerCase();
@@ -158,6 +217,9 @@ class AdBlockerService {
   /// JavaScript to inject into every page to hide ad elements
   static const String adHidingJs = '''
 (function() {
+  if (window.__clearcastAdHide) return;
+  window.__clearcastAdHide = true;
+
   const adSelectors = [
     'iframe[src*="doubleclick"]',
     'iframe[src*="googlesyndication"]',
@@ -176,8 +238,6 @@ class AdBlockerService {
     '.ad-container',
     '.sponsored-content',
     '#ad-wrapper',
-    '[class*="interstitial"]',
-    '[id*="interstitial"]',
   ];
 
   const textSignals = [
@@ -189,33 +249,33 @@ class AdBlockerService {
     'click allow to continue',
   ];
 
+  function containsMedia(el) {
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'video' || tag === 'audio' || tag === 'iframe' ||
+        tag === 'canvas' || tag === 'embed' || tag === 'object') {
+      return true;
+    }
+    return !!(el.querySelector &&
+      el.querySelector('video, audio, iframe, canvas, embed, object'));
+  }
+
   function hideElement(el) {
+    if (containsMedia(el)) return;
     el.style.setProperty('display', 'none', 'important');
     el.style.setProperty('visibility', 'hidden', 'important');
-    el.style.setProperty('opacity', '0', 'important');
     el.style.setProperty('pointer-events', 'none', 'important');
-    el.style.setProperty('height', '0', 'important');
-    el.style.setProperty('max-height', '0', 'important');
-    el.style.setProperty('overflow', 'hidden', 'important');
   }
 
   function looksLikeHijackOverlay(el) {
-    const tag = (el.tagName || '').toLowerCase();
-    if (tag === 'video' || tag === 'audio' || tag === 'canvas') return false;
-    if (el.querySelector && el.querySelector('video, audio')) return false;
+    if (containsMedia(el)) return false;
     const cls = ((el.className && el.className.toString) ? el.className.toString() : '').toLowerCase();
-    if (cls.indexOf('player') !== -1 || cls.indexOf('video') !== -1) return false;
-
+    if (cls.indexOf('player') !== -1 || cls.indexOf('video') !== -1 ||
+        cls.indexOf('jwplayer') !== -1 || cls.indexOf('plyr') !== -1) {
+      return false;
+    }
     const text = (el.innerText || '').toLowerCase().trim();
-    const hasSignalText = textSignals.some(signal => text.includes(signal));
-    if (hasSignalText) return true;
-
-    const style = window.getComputedStyle(el);
-    const isFixed = style.position === 'fixed' || style.position === 'sticky';
-    const z = parseInt(style.zIndex || '0', 10);
-    const wide = el.offsetWidth >= window.innerWidth * 0.75;
-    const tall = el.offsetHeight >= window.innerHeight * 0.35;
-    return isFixed && z >= 999 && wide && tall;
+    return textSignals.some(function(signal) { return text.includes(signal); });
   }
 
   function hideAds() {
@@ -224,25 +284,13 @@ class AdBlockerService {
         hideElement(el);
       });
     });
-
-    // Remove first-party anti-bot/ad overlays that are not loaded from ad domains.
     document.querySelectorAll('div, section, aside, article').forEach(function(el) {
       if (looksLikeHijackOverlay(el)) {
         hideElement(el);
       }
     });
-
-    // Sites often lock scrolling when overlays open; restore navigation.
-    if (document.body) {
-      document.body.style.setProperty('overflow', 'auto', 'important');
-      document.body.style.setProperty('position', 'static', 'important');
-    }
-    if (document.documentElement) {
-      document.documentElement.style.setProperty('overflow', 'auto', 'important');
-    }
   }
 
-  // Run immediately and observe DOM mutations
   hideAds();
   const observer = new MutationObserver(hideAds);
   observer.observe(document.body || document.documentElement, {
@@ -501,13 +549,16 @@ class AdBlockerService {
   /// Protection-on uses a real-browser UA, storage, and third-party cookies for sessions/embeds.
   InAppWebViewSettings webViewSettings({required bool compatibilityMode}) {
     final isTv = DeviceProfileService.instance.isAndroidTv;
+    final interceptRequests = !compatibilityMode && !isTv;
     return InAppWebViewSettings(
       javaScriptEnabled: true,
       isFindInteractionEnabled: true,
       javaScriptCanOpenWindowsAutomatically: true,
       mediaPlaybackRequiresUserGesture: false,
       allowsInlineMediaPlayback: true,
+      allowsPictureInPictureMediaPlayback: true,
       useHybridComposition: true,
+      hardwareAcceleration: true,
       supportMultipleWindows: true,
       supportZoom: false,
       builtInZoomControls: false,
@@ -519,12 +570,11 @@ class AdBlockerService {
       domStorageEnabled: true,
       thirdPartyCookiesEnabled: true,
       cacheMode: CacheMode.LOAD_DEFAULT,
-      useShouldInterceptRequest: !compatibilityMode,
+      useShouldInterceptRequest: interceptRequests,
+      useOnLoadResource: kDebugMode && !isTv,
       iframeAllow: 'fullscreen; autoplay; encrypted-media; picture-in-picture',
       iframeAllowFullscreen: true,
-      preferredContentMode: isTv
-          ? UserPreferredContentMode.DESKTOP
-          : UserPreferredContentMode.RECOMMENDED,
+      preferredContentMode: UserPreferredContentMode.RECOMMENDED,
       userAgent: compatibilityMode ? null : defaultProtectionUserAgent(),
     );
   }

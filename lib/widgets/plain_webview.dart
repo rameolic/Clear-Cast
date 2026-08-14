@@ -32,6 +32,23 @@ class PlainWebView extends StatelessWidget {
     WebResourceRequest request,
     WebResourceError error,
   ) onReceivedError;
+  final void Function(
+    InAppWebViewController controller,
+    ConsoleMessage consoleMessage,
+  )? onConsoleMessage;
+  final void Function(
+    InAppWebViewController controller,
+    WebResourceRequest request,
+    WebResourceResponse errorResponse,
+  )? onReceivedHttpError;
+  final void Function(
+    InAppWebViewController controller,
+    RenderProcessGoneDetail detail,
+  )? onRenderProcessGone;
+  final void Function(
+    InAppWebViewController controller,
+    LoadedResource resource,
+  )? onLoadResource;
 
   const PlainWebView({
     super.key,
@@ -47,6 +64,10 @@ class PlainWebView extends StatelessWidget {
     this.onCreateWindow,
     this.onPermissionRequest,
     required this.onReceivedError,
+    this.onConsoleMessage,
+    this.onReceivedHttpError,
+    this.onRenderProcessGone,
+    this.onLoadResource,
   });
 
   @override
@@ -64,6 +85,10 @@ class PlainWebView extends StatelessWidget {
       onCreateWindow: onCreateWindow,
       onPermissionRequest: onPermissionRequest,
       onReceivedError: onReceivedError,
+      onConsoleMessage: onConsoleMessage,
+      onReceivedHttpError: onReceivedHttpError,
+      onRenderProcessGone: onRenderProcessGone,
+      onLoadResource: onLoadResource,
     );
   }
 }

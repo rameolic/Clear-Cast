@@ -85,10 +85,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void initState() {
     super.initState();
-    AppLogger.info(
+    AppLogger.webView(
       widget.compatibilityMode
-          ? 'Opening WebView for ${widget.item.url} (protection OFF — no blocking or injected scripts)'
-          : 'Opening WebView for ${widget.item.url}',
+          ? 'open url=${widget.item.url} protection=off tv=${DeviceProfileService.instance.isAndroidTv}'
+          : 'open url=${widget.item.url} protection=on tv=${DeviceProfileService.instance.isAndroidTv}',
     );
     if (widget.item.allowedUrls.isEmpty) {
       AppLogger.warn(
@@ -257,6 +257,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
       extraUrls: widget.item.allowedUrls,
     );
     final stored = await _cookieStorage.storedCountForItem(widget.item.url);
+    AppLogger.webView(
+      'cookies restored=$restored stored=$stored url=${widget.item.url}',
+    );
     if (mounted) {
       setState(() {
         _sessionCookieCount = restored > 0 ? restored : stored;
@@ -294,11 +297,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
     _handlingBack = true;
     try {
       if (_showFindBar) {
+        AppLogger.webView('back closed find bar');
         await _closeFindBar();
         return;
       }
       final controller = _webViewController;
-      if (controller != null && await controller.canGoBack()) {
+      final canGoBack = controller != null && await controller.canGoBack();
+      AppLogger.webView(
+        'back canGoBack=$canGoBack current=${_logUrl(_lastCommittedMainFrameUri)}',
+      );
+      if (canGoBack) {
         await controller.goBack();
         return;
       }
@@ -498,10 +506,41 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  String _logUrl(Object? url, {int max = 240}) {
+    final value = url?.toString() ?? 'null';
+    if (value.length <= max) {
+      return value;
+    }
+    return '${value.substring(0, max)}…';
+  }
+
+  bool _looksLikeMedia(String url) => _adBlocker.isMediaUrl(url);
+
   void _handleWebViewCreated(InAppWebViewController controller) {
     _webViewController = controller;
+    AppLogger.webView(
+      'created controller protection=${widget.compatibilityMode ? 'off' : 'on'}',
+    );
+    _logWebViewSettings(controller);
     if (!DeviceProfileService.instance.isAndroidTv) {
       _webViewFocusNode.requestFocus();
+    }
+  }
+
+  Future<void> _logWebViewSettings(InAppWebViewController controller) async {
+    try {
+      final settings = await controller.getSettings();
+      AppLogger.webView(
+        'settings ua=${settings?.userAgent} '
+        'mixed=${settings?.mixedContentMode} '
+        'contentMode=${settings?.preferredContentMode} '
+        'js=${settings?.javaScriptEnabled} '
+        'mediaGesture=${settings?.mediaPlaybackRequiresUserGesture} '
+        'inline=${settings?.allowsInlineMediaPlayback} '
+        'multiWindow=${settings?.supportMultipleWindows}',
+      );
+    } catch (e) {
+      AppLogger.webView('settings read failed: $e');
     }
   }
 
@@ -518,7 +557,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     InAppWebViewController controller,
     WebUri? url,
   ) async {
-    AppLogger.info('WebView load start: ${url?.toString() ?? widget.item.url}');
+    AppLogger.webView('load start ${_logUrl(url ?? widget.item.url)}');
     if (!mounted) {
       return;
     }
@@ -532,9 +571,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     InAppWebViewController controller,
     WebUri? url,
   ) async {
-    AppLogger.info(
-      'WebView load finished: ${url?.toString() ?? widget.item.url}',
-    );
+    AppLogger.webView('load stop ${_logUrl(url ?? widget.item.url)}');
     final committed = Uri.tryParse(url?.toString() ?? '');
     if (committed != null) {
       _lastCommittedMainFrameUri = committed;
@@ -548,8 +585,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final isChallengePage = NavigationGuard.looksLikeCloudflareChallenge(title);
 
     if (isChallengePage) {
-      AppLogger.info(
-        'Skipping protection scripts while Cloudflare challenge is active',
+      AppLogger.webView(
+        'skip inject scripts — Cloudflare challenge title="$title"',
       );
       if (DeviceProfileService.instance.isAndroidTv) {
         await _injectTvCursorHelpers(controller);
@@ -588,6 +625,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
           uri: committed,
         );
 
+    AppLogger.webView(
+      'inject helpers protection=$includeProtectionScripts '
+      'allowedExternal=$onAllowedExternal tv=$isTv '
+      'url=${_logUrl(committed)}',
+    );
     if (includeProtectionScripts) {
       await controller.evaluateJavascript(
         source: AdBlockerService.antiAutomationPatchJs,
@@ -622,6 +664,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   void _handleProgressChanged(InAppWebViewController controller, int progress) {
+    if (progress == 0 || progress == 100 || progress % 25 == 0) {
+      AppLogger.webView('progress $progress%');
+    }
+    if (!mounted) {
+      return;
+    }
     setState(() => _loadingProgress = progress.toDouble());
   }
 
@@ -629,13 +677,68 @@ class _WebViewScreenState extends State<WebViewScreen> {
     InAppWebViewController controller,
     WebUri? url,
     bool? isReload,
-  ) async {}
+  ) async {
+    AppLogger.webView(
+      'history ${_logUrl(url)} reload=${isReload == true}',
+    );
+  }
+
+  void _handleConsoleMessage(
+    InAppWebViewController controller,
+    ConsoleMessage consoleMessage,
+  ) {
+    AppLogger.webView(
+      'console ${consoleMessage.messageLevel} ${consoleMessage.message}',
+    );
+  }
+
+  void _handleReceivedHttpError(
+    InAppWebViewController controller,
+    WebResourceRequest request,
+    WebResourceResponse errorResponse,
+  ) {
+    AppLogger.webView(
+      'http error ${errorResponse.statusCode} '
+      '${errorResponse.reasonPhrase ?? ''} '
+      'mainFrame=${request.isForMainFrame} '
+      '${_logUrl(request.url)}',
+    );
+  }
+
+  void _handleRenderProcessGone(
+    InAppWebViewController controller,
+    RenderProcessGoneDetail detail,
+  ) {
+    AppLogger.webView(
+      'render process gone crash=${detail.didCrash} '
+      'priority=${detail.rendererPriorityAtExit}',
+    );
+  }
+
+  void _handleLoadResource(
+    InAppWebViewController controller,
+    LoadedResource resource,
+  ) {
+    final url = resource.url?.toString() ?? '';
+    if (!_looksLikeMedia(url) && resource.initiatorType != 'video') {
+      return;
+    }
+    AppLogger.webView(
+      'media resource type=${resource.initiatorType} '
+      'ms=${resource.duration?.toStringAsFixed(0)} '
+      '${_logUrl(url)}',
+    );
+  }
 
   void _handleReceivedError(
     InAppWebViewController controller,
     WebResourceRequest request,
     WebResourceError error,
   ) {
+    AppLogger.webView(
+      'load error type=${error.type} ${error.description} '
+      'mainFrame=${request.isForMainFrame} ${_logUrl(request.url)}',
+    );
     if (request.isForMainFrame != true) {
       return;
     }
@@ -662,6 +765,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
   ) async {
     final grantMedia = permissionRequest.resources.contains(
       PermissionResourceType.PROTECTED_MEDIA_ID,
+    );
+    AppLogger.webView(
+      'permission origin=${permissionRequest.origin} '
+      'resources=${permissionRequest.resources} '
+      'action=${grantMedia ? 'GRANT' : 'DENY'}',
     );
     return PermissionResponse(
       resources: permissionRequest.resources,
@@ -696,7 +804,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final raw = createWindowAction.request.url?.toString() ?? '';
     final popupUri = Uri.tryParse(raw);
     if (popupUri == null || raw.isEmpty) {
-      AppLogger.warn('Blocked popup window without a URL');
+      AppLogger.webView('popup blocked — no URL');
       return false;
     }
 
@@ -705,14 +813,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
       allowedUrls: widget.item.allowedUrls,
       target: popupUri,
     )) {
-      AppLogger.info('Loading allowed popup URL in main frame: $raw');
+      AppLogger.webView('popup allowed → load in main frame ${_logUrl(raw)}');
       await controller.loadUrl(
         urlRequest: URLRequest(url: WebUri(raw)),
       );
       return false;
     }
 
-    AppLogger.warn('Blocked popup window request: $raw');
+    AppLogger.webView('popup blocked ${_logUrl(raw)}');
     return false;
   }
 
@@ -729,6 +837,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
           allowedUrls: widget.item.allowedUrls,
           target: targetUri,
         );
+    final navSummary =
+        'mainFrame=${navigationAction.isForMainFrame} '
+        'gesture=${navigationAction.hasGesture} '
+        'redirect=${navigationAction.isRedirect} '
+        '${_logUrl(navigationAction.request.url)}';
 
     if (targetUri != null &&
         navigationAction.isForMainFrame &&
@@ -748,12 +861,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
         hasGesture: navigationAction.hasGesture,
         target: targetUri,
       );
-      AppLogger.warn(
+      AppLogger.webView(
         bounceToEntry
-            ? 'Blocked scripted bounce back to catalog URL from ${_lastCommittedMainFrameUri.toString()} to ${targetUri.toString()}'
+            ? 'nav CANCEL scripted bounce $navSummary from ${_logUrl(_lastCommittedMainFrameUri)}'
             : navigationAllowed
-                ? 'Blocked scripted redirect from ${_lastCommittedMainFrameUri.toString()} to ${targetUri.toString()}'
-                : 'Blocked off-site navigation from ${widget.item.url} to ${targetUri.toString()}',
+                ? 'nav CANCEL scripted redirect $navSummary from ${_logUrl(_lastCommittedMainFrameUri)}'
+                : 'nav CANCEL off-site $navSummary',
       );
       if (mounted) {
         final sheetHost =
@@ -775,21 +888,25 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
 
     if (widget.compatibilityMode || navigationAllowed) {
+      if (navigationAction.isForMainFrame) {
+        AppLogger.webView('nav ALLOW $navSummary');
+      }
       return NavigationActionPolicy.ALLOW;
     }
 
     if (navigationAction.isForMainFrame &&
         _shouldCancelTopLevelNavigation(navigationAction.request.url)) {
-      AppLogger.warn(
-        'Blocked top-level navigation: ${navigationAction.request.url?.toString() ?? 'unknown'}',
-      );
+      AppLogger.webView('nav CANCEL top-level $navSummary');
       return NavigationActionPolicy.CANCEL;
     }
 
     final url = navigationAction.request.url?.toString() ?? '';
     if (_adBlocker.shouldBlock(url)) {
-      AppLogger.warn('Blocked navigation by domain filter: $url');
+      AppLogger.webView('nav CANCEL domain filter $navSummary');
       return NavigationActionPolicy.CANCEL;
+    }
+    if (navigationAction.isForMainFrame) {
+      AppLogger.webView('nav ALLOW $navSummary');
     }
     return NavigationActionPolicy.ALLOW;
   }
@@ -802,8 +919,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
       return null;
     }
     final url = request.url.toString();
+    // Media and images must return immediately. Logging or domain scans on
+    // this path stall HLS segments and produce audio-only playback.
+    if (_adBlocker.shouldSkipIntercept(url)) {
+      return null;
+    }
     if (_adBlocker.shouldBlock(url)) {
-      AppLogger.warn('Blocked resource request: $url');
+      AppLogger.webView('intercept BLOCK ${_logUrl(url)}');
       return WebResourceResponse(
         contentType: 'text/plain',
         statusCode: 204,
@@ -863,6 +985,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
                                 if (isTv && webSize.width > 0) {
                                   _ensureTvCursor(webSize);
                                 }
+                                final useIntercept =
+                                    !widget.compatibilityMode && !isTv;
                                 if (widget.compatibilityMode) {
                                   return PlainWebView(
                                     url: widget.item.url,
@@ -883,6 +1007,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
                                     onPermissionRequest:
                                         _handlePermissionRequest,
                                     onReceivedError: _handleReceivedError,
+                                    onConsoleMessage: _handleConsoleMessage,
+                                    onReceivedHttpError:
+                                        _handleReceivedHttpError,
+                                    onRenderProcessGone:
+                                        _handleRenderProcessGone,
+                                    onLoadResource: _handleLoadResource,
                                   );
                                 }
                                 return InAppWebView(
@@ -903,10 +1033,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
                                   onCreateWindow: _handleCreateWindow,
                                   shouldOverrideUrlLoading:
                                       _handleNavigationOverride,
-                                  shouldInterceptRequest: _interceptRequest,
+                                  shouldInterceptRequest: useIntercept
+                                      ? _interceptRequest
+                                      : null,
                                   onPermissionRequest:
                                       _handlePermissionRequest,
                                   onReceivedError: _handleReceivedError,
+                                  onConsoleMessage: _handleConsoleMessage,
+                                  onReceivedHttpError:
+                                      _handleReceivedHttpError,
+                                  onRenderProcessGone:
+                                      _handleRenderProcessGone,
+                                  onLoadResource: _handleLoadResource,
                                 );
                               },
                             ),
