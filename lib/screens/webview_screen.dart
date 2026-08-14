@@ -31,6 +31,7 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> {
   InAppWebViewController? _webViewController;
+  final GlobalKey _webViewKey = GlobalKey();
   final AdBlockerService _adBlocker = AdBlockerService();
   late final FindInteractionController _findInteractionController;
   bool _isLoading = true;
@@ -939,6 +940,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTv = DeviceProfileService.instance.isAndroidTv;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -948,27 +950,37 @@ class _WebViewScreenState extends State<WebViewScreen> {
         await _handleBack();
       },
       child: Scaffold(
-        backgroundColor: ClearCastColors.scaffold,
+        backgroundColor:
+            isTv ? Colors.transparent : ClearCastColors.scaffold,
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final isTv = DeviceProfileService.instance.isAndroidTv;
             final r = ResponsiveLayout(constraints.biggest, isTv: isTv);
+            final progressHeight =
+                (r.toolbarHeight() * 0.05).clamp(2.0, 5.0).toDouble();
             return TvNavigationScope(
               child: Column(
                 children: [
                   _buildTopBar(r),
-                  if (_showFindBar) _buildFindBar(r),
-                  if (_isLoading)
-                    LinearProgressIndicator(
-                      value:
-                          _loadingProgress > 0 ? _loadingProgress / 100 : null,
-                      backgroundColor: ClearCastColors.surfaceMuted,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        ClearCastColors.lime,
-                      ),
-                      minHeight:
-                          (r.toolbarHeight() * 0.05).clamp(2.0, 5.0).toDouble(),
-                    ),
+                  Visibility(
+                    visible: _showFindBar,
+                    maintainState: true,
+                    child: _buildFindBar(r),
+                  ),
+                  SizedBox(
+                    height: progressHeight,
+                    child: _isLoading
+                        ? LinearProgressIndicator(
+                            value: _loadingProgress > 0
+                                ? _loadingProgress / 100
+                                : null,
+                            backgroundColor: ClearCastColors.surfaceMuted,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              ClearCastColors.lime,
+                            ),
+                            minHeight: progressHeight,
+                          )
+                        : const SizedBox.expand(),
+                  ),
                   Expanded(
                     child: !_cookiesReady
                         ? const Center(
@@ -989,6 +1001,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                                     !widget.compatibilityMode && !isTv;
                                 if (widget.compatibilityMode) {
                                   return PlainWebView(
+                                    key: _webViewKey,
                                     url: widget.item.url,
                                     settings: _adBlocker.webViewSettings(
                                       compatibilityMode: true,
@@ -1016,6 +1029,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                                   );
                                 }
                                 return InAppWebView(
+                                  key: _webViewKey,
                                   findInteractionController:
                                       _findInteractionController,
                                   initialUrlRequest: URLRequest(

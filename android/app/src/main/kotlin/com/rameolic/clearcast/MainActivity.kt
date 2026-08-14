@@ -8,11 +8,25 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.RenderMode
+import io.flutter.embedding.android.TransparencyMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    override fun getRenderMode(): RenderMode {
+        return if (isAndroidTvDevice()) RenderMode.texture else RenderMode.surface
+    }
+
+    override fun getTransparencyMode(): TransparencyMode {
+        return if (isAndroidTvDevice()) {
+            TransparencyMode.transparent
+        } else {
+            TransparencyMode.opaque
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -57,11 +71,16 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isAndroidTvDevice(): Boolean {
-        val uiMode = resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
-        if (uiMode == Configuration.UI_MODE_TYPE_TELEVISION) {
-            return true
+        return try {
+            val uiMode = resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
+            if (uiMode == Configuration.UI_MODE_TYPE_TELEVISION) {
+                true
+            } else {
+                packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+            }
+        } catch (_: Exception) {
+            false
         }
-        return packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     }
 
     private fun canInstallPackages(): Boolean {
